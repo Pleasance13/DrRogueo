@@ -1,0 +1,40 @@
+[gd_scene load_steps=9 format=3 uid="uid://c7ngsf876kyec"]
+
+[ext_resource type="Texture2D" uid="uid://dcgb1rx2lxy68" path="res://art/ui/board-bottle.png" id="3_knosr"]
+[ext_resource type="Shader" uid="uid://du3ywkjo2dm5c" path="res://shaders/ui/board.gdshader" id="4_ci4ar"]
+[ext_resource type="Texture2D" uid="uid://nj5c0x48o8jw" path="res://art/ui/board-bottle-glass.png" id="4_exf0g"]
+[ext_resource type="Texture2D" uid="uid://bgsotyo52vhyc" path="res://art/ui/board.png" id="4_q07he"]
+[ext_resource type="Script" uid="uid://bmbcnbug8s184" path="res://scripts/board/board_frame.gd" id="5_dej46"]
+[ext_resource type="Script" uid="uid://fj07qmfifqt6" path="res://scripts/board/board_grid.gd" id="5_kymhv"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ci4ar"]
+shader = ExtResource("4_ci4ar")
+shader_parameter/light_color = Color(0.972549, 0.972549, 0.972549, 1)
+shader_parameter/dark_color = Color(0, 0, 0, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_exf0g"]
+shader = ExtResource("4_ci4ar")
+shader_parameter/light_color = Color(0.431373, 0, 0.25098, 1)
+shader_parameter/dark_color = Color(0, 0.164706, 0.533333, 1)
+
+[node name="Board" type="Node2D"]
+texture_filter = 1
+
+[node name="Board_Frame" type="Sprite2D" parent="."]
+material = SubResource("ShaderMaterial_ci4ar")
+texture = ExtResource("3_knosr")
+script = ExtResource("5_dej46")
+dark_color = Color(0, 0, 0, 1)
+
+[node name="Board_Frame_Glass" type="Sprite2D" parent="."]
+material = SubResource("ShaderMaterial_ci4ar")
+texture = ExtResource("4_exf0g")
+
+[node name="Board_Grid" type="Sprite2D" parent="."]
+visible = false
+material = SubResource("ShaderMaterial_exf0g")
+position = Vector2(0, 16)
+texture = ExtResource("4_q07he")
+script = ExtResource("5_kymhv")
+light_color = Color(0.431373, 0, 0.25098, 1)
+dark_color = Color(0, 0.164706, 0.533333, 1)

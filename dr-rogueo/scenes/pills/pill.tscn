@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3 uid="uid://dt4yyoajt5a28"]
+
+[ext_resource type="Script" uid="uid://2qotxf1orxuv" path="res://scripts/pills/pill.gd" id="1_aqytg"]
+[ext_resource type="Texture2D" uid="uid://bciyqr4ckv1gv" path="res://art/pills/pills.png" id="1_cs156"]
+[ext_resource type="Script" uid="uid://cytcbd75pve0y" path="res://scripts/pills/pill_half.gd" id="2_vrjvl"]
+
+[node name="Pill" type="Node2D"]
+texture_filter = 1
+script = ExtResource("1_aqytg")
+orientation = 3
+
+[node name="Half1" type="Node2D" parent="."]
+script = ExtResource("2_vrjvl")
+pill_state = 1
+
+[node name="Sprite2D" type="Sprite2D" parent="Half1"]
+texture_filter = 1
+texture = ExtResource("1_cs156")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 8, 8, 8)
+
+[node name="Half2" type="Node2D" parent="."]
+position = Vector2(0, -8)
+script = ExtResource("2_vrjvl")
+pill_color = 2
+
+[node name="Sprite2D" type="Sprite2D" parent="Half2"]
+texture_filter = 1
+texture = ExtResource("1_cs156")
+centered = false
+region_enabled = true
+region_rect = Rect2(16, 0, 8, 8)

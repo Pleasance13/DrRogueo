@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="DrRogueoBackgroundPreset" load_steps=2 format=3 uid="uid://kvbdq5gvgdvf"]
+
+[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/BackgroundPreset.gd" id="1_uaas1"]
+
+[resource]
+script = ExtResource("1_uaas1")
+preset_name = "preset 1"
+light_color = Color(0.278431, 0.756863, 0.772549, 1)
+dark_color = Color(0, 0.462745, 0.270588, 1)
+shadow_color = Color(0, 0.223529, 0.141176, 1)
+metadata/_custom_type_script = "uid://dxg2fi13nn65r"
