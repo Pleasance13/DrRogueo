@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3 uid="uid://bmewfptcmpfog"]
+
+[ext_resource type="Texture2D" uid="uid://bq8mt0k366bje" path="res://art/ui/pill-preview-box.png" id="1_73dgy"]
+
+[node name="Pill-preview" type="Node2D"]
+texture_filter = 1
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(226, 32)
+texture = ExtResource("1_73dgy")
+centered = false

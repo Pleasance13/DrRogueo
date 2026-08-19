@@ -50,6 +50,15 @@ var level: int = 0
 
 
 # ============================================================
+# ITEMS
+# ============================================================
+
+@export_category("Items")
+
+@export var pong_sprite_texture: Texture2D
+
+
+# ============================================================
 # FALL TIMINGS
 # ============================================================
 
@@ -88,6 +97,11 @@ var lock_timer := 0.0
 var resolving_board := false
 
 
+# Active Pong Paddle item minigame, or null when none is running.
+# See start_pong_item() / pong_controller.gd.
+var pong_controller: PongController = null
+
+
 # Vector2i -> PillHalf
 var occupied_cells: Dictionary = {}
 
@@ -124,6 +138,15 @@ func _ready() -> void:
 
 	# Starting level background.
 	apply_new_level_background()
+
+	$Items.set_board(self)
+
+	Inventory.reset()
+
+	var pong_item := ItemPong.new()
+	pong_item.icon = preload("res://art/ui/pont-icon-temp.png")
+
+	Inventory.add_item(pong_item)
 
 	# Create the preview first.
 	create_next_preview()
@@ -177,6 +200,21 @@ func _process(delta: float) -> void:
 
 	if transitioning_level:
 		return
+
+
+	# --------------------------------------------------------
+	# PONG PADDLE ITEM ACTIVE
+	# --------------------------------------------------------
+	#
+	# PongController drives itself via its own _process() (it's
+	# added as a child below in start_pong_item()) - this just
+	# suspends normal piece falling/input for as long as it's
+	# running, same as the prototype's `if (paddle) return`.
+	#
+	if is_instance_valid(pong_controller):
+		return
+
+	pong_controller = null
 
 
 	# --------------------------------------------------------
@@ -503,6 +541,34 @@ func grid_to_local(
 	return top_left + Vector2(
 		grid_position.x * CELL_SIZE,
 		grid_position.y * CELL_SIZE
+	)
+
+
+# Inverse of grid_to_local() - which cell a local-space pixel
+# position falls inside. Used by the Pong Paddle item to test
+# ball-vs-cell collision.
+func local_to_grid(
+	local_position: Vector2
+) -> Vector2i:
+
+	var top_left := grid_to_local(Vector2i.ZERO)
+
+	var relative := local_position - top_left
+
+	return Vector2i(
+		int(floor(relative.x / CELL_SIZE)),
+		int(floor(relative.y / CELL_SIZE))
+	)
+
+
+# The board's full pixel bounds in local space - handy for
+# anything (like the Pong Paddle item) that needs to bounce
+# something off the board's own edges.
+func get_board_pixel_rect() -> Rect2:
+
+	return Rect2(
+		grid_to_local(Vector2i.ZERO),
+		Vector2(BOARD_WIDTH * CELL_SIZE, BOARD_HEIGHT * CELL_SIZE)
 	)
 
 
@@ -915,36 +981,22 @@ func _handle_input() -> void:
 			Vector2i(1, 0)
 		)
 
+
 	if Input.is_action_just_pressed("ui_down"):
 
 		if try_move_pill(Vector2i(0, 1)):
 
 			fall_timer = 0.0
 
-	if Input.is_key_pressed(KEY_Z):
 
-		if not _z_was_pressed:
+	if Input.is_action_just_pressed("rotate_ccw"):
 
-			_z_was_pressed = true
-
-			try_rotate_pill_counter_clockwise()
-
-	else:
-
-		_z_was_pressed = false
+		try_rotate_pill_counter_clockwise()
 
 
-	if Input.is_key_pressed(KEY_X):
+	if Input.is_action_just_pressed("rotate_cw"):
 
-		if not _x_was_pressed:
-
-			_x_was_pressed = true
-
-			try_rotate_pill()
-
-	else:
-
-		_x_was_pressed = false
+		try_rotate_pill()
 
 
 # ============================================================
@@ -1138,6 +1190,10 @@ func settle_current_pill() -> void:
 		return
 
 
+	# ========================================================
+	# GET PILL HALVES
+	# ========================================================
+
 	var half_1 := (
 		current_pill.get_node_or_null("Half1")
 		as PillHalf
@@ -1159,9 +1215,17 @@ func settle_current_pill() -> void:
 		return
 
 
+	# ========================================================
+	# SET PARTNERS
+	# ========================================================
+
 	half_1.partner_half = half_2
 	half_2.partner_half = half_1
 
+
+	# ========================================================
+	# GET GRID CELLS
+	# ========================================================
 
 	var half_1_cell := (
 		current_pill.get_half_1_cell(
@@ -1176,6 +1240,10 @@ func settle_current_pill() -> void:
 		)
 	)
 
+
+	# ========================================================
+	# MOVE HALVES OUT OF THE ACTIVE PILL
+	# ========================================================
 
 	half_1.reparent(self, true)
 	half_2.reparent(self, true)
@@ -1203,14 +1271,48 @@ func settle_current_pill() -> void:
 	)
 
 
+	# ========================================================
+	# REGISTER ON BOARD
+	# ========================================================
+
 	occupied_cells[half_1_cell] = half_1
 	occupied_cells[half_2_cell] = half_2
 
+
+	# ========================================================
+	# REMOVE ACTIVE PILL CONTAINER
+	# ========================================================
 
 	current_pill.queue_free()
 
 	current_pill = null
 
+
+	# ========================================================
+	# PENDING ITEM
+	# ========================================================
+	#
+	# The pill has now been safely settled onto the board.
+	#
+	# If Pong is pending, fire it now instead of deleting the
+	# pill that just landed.
+	# ========================================================
+
+	if Inventory.has_pending():
+
+		var item_fired := Inventory.fire_pending(self)
+
+		if item_fired:
+
+			fall_timer = 0.0
+			lock_timer = 0.0
+
+			return
+
+
+	# ========================================================
+	# NORMAL BOARD RESOLUTION
+	# ========================================================
 
 	resolve_board()
 
@@ -1373,6 +1475,203 @@ func _resolve_matches_and_gravity() -> bool:
 
 
 	return false
+
+
+# ============================================================
+# PONG PADDLE ITEM
+# ============================================================
+
+func start_pong_item() -> void:
+
+	if is_instance_valid(pong_controller):
+		return
+
+
+	pong_controller = PongController.new()
+
+	add_child(pong_controller)
+
+	pong_controller.start(self)
+
+
+# Called by PongController when the minigame ends on its own
+# (ball missed, or the combo timer ran out) - NOT when it's
+# stopped externally because the level just got cleared (see
+# pong_break_cell()/_resolve_pong_break() below, which handle
+# that case themselves).
+
+func on_pong_missed() -> void:
+
+	# The controller has already shut itself down.
+	# Clear our reference immediately so the board never
+	# continues treating a freed controller as active.
+	pong_controller = null
+
+
+	if (
+		current_pill == null
+		and not transitioning_level
+		and not resolving_board
+	):
+
+		spawn_pill()
+
+
+# Applies one ball hit to whatever's at `cell` (a pill half or a
+# virus). Returns true if this hit actually broke the cell (hp
+# reached 0 and it started vanishing), false if it just took
+# damage and survived. Mirrors the prototype's clearSingleCell(),
+# but goes through the same take_hit()/vanish path normal match
+# resolution uses instead of a bespoke currency/virus-count
+# recalculation.
+
+func pong_break_cell(
+	cell: Vector2i
+) -> bool:
+
+	if transitioning_level:
+		return false
+
+	# ========================================================
+	# PILL HALF
+	# ========================================================
+
+	if occupied_cells.has(cell):
+
+		var half := occupied_cells[cell] as PillHalf
+
+		# The dictionary can briefly contain a reference to an
+		# object that has already been freed while Pong and the
+		# board's async resolution are running simultaneously.
+		if not is_instance_valid(half):
+
+			occupied_cells.erase(cell)
+
+			return false
+
+
+		if not half.take_hit():
+			return false
+
+
+		occupied_cells.erase(cell)
+
+
+		half.pill_state = PillHalf.PillState.VANISHING
+
+		vanishing_halves[half] = VANISH_DURATION
+
+
+		var partner := half.partner_half
+
+		if is_instance_valid(partner):
+
+			partner.partner_half = null
+			half.partner_half = null
+
+			partner.pill_state = (
+				PillHalf.PillState.SEPARATED
+			)
+
+		else:
+
+			half.partner_half = null
+
+
+		_start_pong_break_resolution()
+
+		return true
+
+
+	# ========================================================
+	# VIRUS
+	# ========================================================
+
+	if virus_cells.has(cell):
+
+		var virus := virus_cells[cell] as Virus
+
+		# Same protection for viruses.
+		if not is_instance_valid(virus):
+
+			virus_cells.erase(cell)
+
+			return false
+
+
+		if not virus.take_hit():
+			return false
+
+
+		virus_cells.erase(cell)
+
+		virus.visual_state = (
+			Virus.VisualState.VANISHING
+		)
+
+		vanishing_halves[virus] = VANISH_DURATION
+
+
+		_start_pong_break_resolution()
+
+		return true
+
+
+	return false
+
+# Kicks off _resolve_pong_break() unless a resolve is already
+# in flight. If one IS already running (the ball broke a second
+# cell before the first one finished settling), we still did the
+# vanish/dict bookkeeping above synchronously - the running pass
+# (or whichever hit triggers the next one) will pick up the gap
+# via its own gravity pass, so nothing gets permanently stuck.
+func _start_pong_break_resolution() -> void:
+
+	if resolving_board:
+		return
+
+	resolving_board = true
+
+	_resolve_pong_break()
+
+
+# Single-cell version of _resolve_matches_and_gravity(): a Pong
+# Paddle break isn't a match, so it has to trigger its own
+# gravity pass to fill the gap it left, then hand off to the
+# normal match/gravity loop in case that gravity pass causes a
+# chain reaction.
+func _resolve_pong_break() -> void:
+
+	await wait_for_vanishing_halves()
+
+
+	var level_cleared := virus_cells.is_empty()
+
+
+	if not level_cleared:
+
+		await apply_gravity()
+
+		await wait_for_vanishing_halves()
+
+		level_cleared = await _resolve_matches_and_gravity()
+
+
+	resolving_board = false
+
+
+	if level_cleared:
+
+		if is_instance_valid(pong_controller):
+
+			var controller := pong_controller
+
+			pong_controller = null
+
+			controller.stop()
+
+
+		await advance_to_next_level()
 
 
 # ============================================================
@@ -1642,31 +1941,48 @@ func build_gravity_units() -> Array[Dictionary]:
 
 	var visited: Dictionary = {}
 
+	# Clean up any stale/freed entries while we're here.
+	var stale_cells: Array[Vector2i] = []
 
 	for cell in occupied_cells.keys():
 
-		var half: PillHalf = (
-			occupied_cells[cell]
-			as PillHalf
-		)
+		var raw_half: Variant = occupied_cells[cell]
 
+		if not is_instance_valid(raw_half):
+
+			stale_cells.append(cell)
+
+			continue
+
+
+		var half: PillHalf = raw_half as PillHalf
 
 		if half == null:
+
+			stale_cells.append(cell)
+
 			continue
 
 
 		if visited.has(half):
+
 			continue
 
 
-		var partner := half.partner_half
+		# ----------------------------------------------------
+		# Check for a valid partner.
+		# ----------------------------------------------------
+
+		var partner: PillHalf = null
+
+		if is_instance_valid(half.partner_half):
+
+			partner = half.partner_half
 
 
 		if partner != null:
 
-			var partner_cell: Variant = (
-				find_half_cell(partner)
-			)
+			var partner_cell: Variant = find_half_cell(partner)
 
 
 			if partner_cell != null:
@@ -1695,6 +2011,10 @@ func build_gravity_units() -> Array[Dictionary]:
 				continue
 
 
+		# ----------------------------------------------------
+		# Solo half.
+		# ----------------------------------------------------
+
 		var solo_halves: Array[PillHalf] = [
 			half
 		]
@@ -1712,6 +2032,12 @@ func build_gravity_units() -> Array[Dictionary]:
 
 
 		visited[half] = true
+
+
+	# Remove dead references from occupied_cells.
+	for cell in stale_cells:
+
+		occupied_cells.erase(cell)
 
 
 	return units
@@ -1734,13 +2060,23 @@ func find_half_cell(
 	target: PillHalf
 ) -> Variant:
 
-	if target == null:
+	if not is_instance_valid(target):
+
 		return null
 
 
 	for cell in occupied_cells.keys():
 
-		if occupied_cells[cell] == target:
+		var raw_half: Variant = occupied_cells[cell]
+
+		if not is_instance_valid(raw_half):
+
+			continue
+
+
+		var half: PillHalf = raw_half as PillHalf
+
+		if half == target:
 
 			return cell
 
@@ -1769,23 +2105,61 @@ func gravity_unit_can_fall(
 		)
 
 
+		# ----------------------------------------------------
+		# BOARD BOTTOM
+		# ----------------------------------------------------
+
 		if destination.y >= BOARD_HEIGHT:
 
 			return false
 
+
+		# ----------------------------------------------------
+		# VIRUS COLLISION
+		# ----------------------------------------------------
 
 		if virus_cells.has(destination):
 
 			return false
 
 
+		# ----------------------------------------------------
+		# PILL HALF COLLISION
+		# ----------------------------------------------------
+
 		if occupied_cells.has(destination):
 
-			var occupant: PillHalf = (
+			var raw_occupant: Variant = (
 				occupied_cells[destination]
-				as PillHalf
 			)
 
+
+			# Stale/freed reference.
+			#
+			# Remove it from the dictionary and treat the cell
+			# as empty.
+			if not is_instance_valid(raw_occupant):
+
+				occupied_cells.erase(destination)
+
+				continue
+
+
+			var occupant: PillHalf = (
+				raw_occupant as PillHalf
+			)
+
+
+			if occupant == null:
+
+				occupied_cells.erase(destination)
+
+				continue
+
+
+			# ------------------------------------------------
+			# Own other half.
+			# ------------------------------------------------
 
 			if unit_contains_half(
 				unit,
@@ -1795,10 +2169,18 @@ func gravity_unit_can_fall(
 				continue
 
 
+			# ------------------------------------------------
+			# Another unit that is also moving this frame.
+			# ------------------------------------------------
+
 			if moving_halves.has(occupant):
 
 				continue
 
+
+			# ------------------------------------------------
+			# Solid pill half blocking the unit.
+			# ------------------------------------------------
 
 			return false
 

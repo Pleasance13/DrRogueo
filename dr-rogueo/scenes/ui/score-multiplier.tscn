@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3 uid="uid://dy2rn8horite5"]
+
+[ext_resource type="Texture2D" uid="uid://bl4vpkimd3o3y" path="res://art/ui/scorex-box.png" id="1_vyoje"]
+[ext_resource type="Texture2D" uid="uid://bv23wde67abbj" path="res://art/ui/scorex-values.png" id="2_tx0xm"]
+
+[node name="Score-multiplier" type="Node2D"]
+texture_filter = 1
+
+[node name="ScoreX-Box" type="Sprite2D" parent="."]
+texture = ExtResource("1_vyoje")
+centered = false
+
+[node name="ScoreX-Value" type="Sprite2D" parent="."]
+texture = ExtResource("2_tx0xm")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 27, 27)

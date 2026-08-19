@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://desrmcn8loloj"]
+
+[ext_resource type="Texture2D" uid="uid://codaryfupfqei" path="res://art/ui/clipboard.png" id="1_byv16"]
+
+[node name="Clipboard" type="Node2D"]
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_byv16")
+centered = false

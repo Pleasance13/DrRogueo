@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://b454e061gffh6"]
+
+[ext_resource type="Texture2D" uid="uid://dhrf3fjbusfat" path="res://art/ui/magnifier.png" id="1_av8x1"]
+
+[node name="Magnifier" type="Node2D"]
+texture_filter = 1
+
+[node name="Magnifying-Glass" type="Sprite2D" parent="."]
+texture = ExtResource("1_av8x1")
+centered = false

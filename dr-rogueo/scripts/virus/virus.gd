@@ -19,6 +19,27 @@ enum VisualState {
 		update_visual()
 
 
+# ============================================================
+# HP
+# ============================================================
+#
+# See PillHalf.hp for the full explanation - same mechanism,
+# used by items like the Pong Paddle ball.
+#
+const MAX_HP := 3
+
+var hp: int = MAX_HP
+
+
+func take_hit() -> bool:
+
+	hp -= 1
+
+	update_visual()
+
+	return hp <= 0
+
+
 @export var visual_state: VisualState = VisualState.NORMAL:
 	set(value):
 		visual_state = value
@@ -31,8 +52,14 @@ enum VisualState {
 
 # The virus spritesheet.
 #
-# 3 columns × 2 rows
-# 24 × 16 pixels
+# 3 columns × 6 rows
+# 24 × 48 pixels
+#
+# Rows are grouped in damage-tier pairs (each pair is the
+# existing 2-frame idle animation for that tier):
+#   rows 0-1 -> normal (0 hits)
+#   rows 2-3 -> 1 hit
+#   rows 4-5 -> 2 hits
 #
 @export_category("Textures")
 
@@ -157,7 +184,7 @@ func update_visual() -> void:
 	virus_sprite.region_enabled = false
 
 	virus_sprite.hframes = 3
-	virus_sprite.vframes = 2
+	virus_sprite.vframes = 6
 
 	virus_sprite.frame = get_sprite_frame()
 
@@ -166,32 +193,44 @@ func update_visual() -> void:
 # SPRITE FRAME
 # ============================================================
 #
-# Virus spritesheet:
+# Virus spritesheet (6 rows: 3 damage tiers × 2 idle frames):
 #
 #     ┌────────┬────────┬────────┐
-#     │ RED 1  │ YELLOW 1│ BLUE 1 │
+#     │ RED 1  │YELLOW 1│ BLUE 1 │  tier 0 (normal), anim 0
 #     ├────────┼────────┼────────┤
-#     │ RED 2  │ YELLOW 2│ BLUE 2 │
+#     │ RED 2  │YELLOW 2│ BLUE 2 │  tier 0 (normal), anim 1
+#     ├────────┼────────┼────────┤
+#     │ RED 1  │YELLOW 1│ BLUE 1 │  tier 1 (1 hit), anim 0
+#     ├────────┼────────┼────────┤
+#     │ RED 2  │YELLOW 2│ BLUE 2 │  tier 1 (1 hit), anim 1
+#     ├────────┼────────┼────────┤
+#     │ RED 1  │YELLOW 1│ BLUE 1 │  tier 2 (2 hits), anim 0
+#     ├────────┼────────┼────────┤
+#     │ RED 2  │YELLOW 2│ BLUE 2 │  tier 2 (2 hits), anim 1
 #     └────────┴────────┴────────┘
 #
 # Godot frame numbering:
 #
-#     0  1  2
-#     3  4  5
+#      0   1   2
+#      3   4   5
+#      6   7   8
+#      9  10  11
+#     12  13  14
+#     15  16  17
 #
 # ============================================================
 
 func get_sprite_frame() -> int:
 
-	match virus_color:
+	var column := int(virus_color)
 
-		PillHalf.PillColor.RED:
-			return 0 if animation_frame == 0 else 3
+	# 0 = normal, 1 = 1 hit, 2 = 2 hits. The 3rd hit breaks the
+	# virus outright (visual_state switches to VANISHING before
+	# this is ever consulted), so this never needs to go past 2.
+	var damage_tier: int = clamp(MAX_HP - hp, 0, 2)
 
-		PillHalf.PillColor.YELLOW:
-			return 1 if animation_frame == 0 else 4
+	var anim_row: int = 0 if animation_frame == 0 else 1
 
-		PillHalf.PillColor.BLUE:
-			return 2 if animation_frame == 0 else 5
+	var row: int = damage_tier * 2 + anim_row
 
-	return 0
+	return row * 3 + column

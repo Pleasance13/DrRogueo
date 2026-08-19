@@ -20,6 +20,32 @@ enum PillState {
 
 var partner_half: PillHalf = null
 
+
+# ============================================================
+# HP
+# ============================================================
+#
+# Used by items that damage cells over multiple hits (e.g. the
+# Pong Paddle ball) rather than clearing them outright. Normal
+# match-based clearing ignores this entirely - it's only
+# consulted by whatever's calling take_hit().
+#
+const MAX_HP := 3
+
+var hp: int = MAX_HP
+
+
+# Returns true if this hit broke the half (hp reached 0) - the
+# caller is responsible for actually vanishing it.
+func take_hit() -> bool:
+
+	hp -= 1
+
+	_update_damage_overlay()
+
+	return hp <= 0
+
+
 @export_category("Pill Half")
 
 @export var pill_color: PillColor = PillColor.RED:
@@ -39,8 +65,24 @@ var partner_half: PillHalf = null
 const SPRITE_SIZE := 8
 
 
+# ============================================================
+# DAMAGE OVERLAY
+# ============================================================
+#
+# 16×8 overlay, two 8×8 frames side by side:
+#   left half  (x=0) -> after 1 hit
+#   right half (x=8) -> after 2 hits
+#
+# Hidden at 0 hits (full hp) and at 3 hits (about to vanish -
+# the caller switches pill_state to VANISHING at that point
+# anyway, so there's nothing meaningful to overlay).
+#
+const DAMAGE_OVERLAY_FRAME_SIZE := 8
+
+
 func _ready() -> void:
 	_update_sprite()
+	_update_damage_overlay()
 
 
 func _update_sprite() -> void:
@@ -60,4 +102,28 @@ func _update_sprite() -> void:
 		row * SPRITE_SIZE,
 		SPRITE_SIZE,
 		SPRITE_SIZE
+	)
+
+
+func _update_damage_overlay() -> void:
+	if not is_inside_tree():
+		return
+
+	var overlay := get_node_or_null("DamageOverlay") as Sprite2D
+	if overlay == null:
+		return
+
+	var hits_taken := MAX_HP - hp
+
+	if hits_taken <= 0 or hits_taken > 2:
+		overlay.visible = false
+		return
+
+	overlay.visible = true
+	overlay.region_enabled = true
+	overlay.region_rect = Rect2(
+		(hits_taken - 1) * DAMAGE_OVERLAY_FRAME_SIZE,
+		0,
+		DAMAGE_OVERLAY_FRAME_SIZE,
+		DAMAGE_OVERLAY_FRAME_SIZE
 	)
