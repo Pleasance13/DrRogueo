@@ -21,9 +21,6 @@ const SLOT_ROW_Y := [0, 28]
 const SLOT_ROW_H := [28, 28]
 
 
-@export var slot_spacing := 28.0
-
-
 # ============================================================
 # ITEM PREVIEW SPRITESHEET
 # ============================================================
@@ -141,77 +138,40 @@ func set_timer_progress(progress: float) -> void:
 # EDITOR / RUNTIME SLOT SETUP
 # ============================================================
 
+# ============================================================
+# EDITOR / RUNTIME SLOT SETUP
+# ============================================================
+
+# ============================================================
+# EDITOR / RUNTIME SLOT SETUP
+# ============================================================
+
 func _setup_slot_sprites() -> void:
-
-	var template := get_node_or_null("Item-Slots") as Sprite2D
-
-	if template == null:
-		return
 
 	slot_sprites.clear()
 
 
-	# --------------------------------------------------------
-	# Remove ONLY generated Y/B slots.
-	# --------------------------------------------------------
+	var x_slot := get_node_or_null(
+		"Item-Slots/Item-Slot-X"
+	) as Sprite2D
 
-	for child in get_children():
+	var y_slot := get_node_or_null(
+		"Item-Slots/Item-Slot-Y"
+	) as Sprite2D
 
-		if child is Sprite2D and child.name in [
-			"Item-Slot-Generated-Y",
-			"Item-Slot-Generated-B"
-		]:
-
-			child.free()
-
-
-	# --------------------------------------------------------
-	# Slot X
-	# --------------------------------------------------------
-
-	slot_sprites.append(template)
+	var b_slot := get_node_or_null(
+		"Item-Slots/Item-Slot-B"
+	) as Sprite2D
 
 
-	# --------------------------------------------------------
-	# Slot Y
-	# --------------------------------------------------------
+	if x_slot != null:
+		slot_sprites.append(x_slot)
 
-	var y_slot := template.duplicate() as Sprite2D
+	if y_slot != null:
+		slot_sprites.append(y_slot)
 
-	y_slot.name = "Item-Slot-Generated-Y"
-
-	add_child(y_slot)
-
-	if Engine.is_editor_hint():
-		y_slot.owner = get_tree().edited_scene_root
-
-	y_slot.position = (
-		template.position +
-		Vector2(slot_spacing, 0)
-	)
-
-	slot_sprites.append(y_slot)
-
-
-	# --------------------------------------------------------
-	# Slot B
-	# --------------------------------------------------------
-
-	var b_slot := template.duplicate() as Sprite2D
-
-	b_slot.name = "Item-Slot-Generated-B"
-
-	add_child(b_slot)
-
-	if Engine.is_editor_hint():
-		b_slot.owner = get_tree().edited_scene_root
-
-	b_slot.position = (
-		template.position +
-		Vector2(slot_spacing * 2.0, 0)
-	)
-
-	slot_sprites.append(b_slot)
+	if b_slot != null:
+		slot_sprites.append(b_slot)
 
 
 	# --------------------------------------------------------
@@ -230,6 +190,7 @@ func _setup_slot_sprites() -> void:
 			icon_sprite = Sprite2D.new()
 			icon_sprite.name = "ItemIcon"
 			icon_sprite.centered = true
+			icon_sprite.position = Vector2(-1, -1)
 
 			slot.add_child(icon_sprite)
 
@@ -237,13 +198,16 @@ func _setup_slot_sprites() -> void:
 				icon_sprite.owner = get_tree().edited_scene_root
 
 
-		icon_sprite.position = Vector2(-1, -1
+	# --------------------------------------------------------
+	# Force initial inactive state.
+	# --------------------------------------------------------
+
+	for i in range(slot_sprites.size()):
+
+		_set_slot_frame(
+			i,
+			false
 		)
-
-
-	for i in range(SLOT_COUNT):
-
-		_set_slot_frame(i, false)
 
 
 # ============================================================
@@ -268,8 +232,6 @@ func _set_slot_frame(
 		SLOT_COL_W,
 		SLOT_ROW_H[row]
 	)
-
-	slot_sprites[slot].offset = Vector2.ZERO
 
 
 # ============================================================
@@ -418,6 +380,9 @@ func _activate_selected() -> void:
 	if selected_slot >= Inventory.items.size():
 		return
 
+	if Inventory.items[selected_slot] == null:
+		return
+
 	if board == null:
 
 		push_warning(
@@ -455,18 +420,15 @@ func _refresh() -> void:
 	if Engine.is_editor_hint():
 		return
 
-
-	# --------------------------------------------------------
-	# SLOTS
-	# --------------------------------------------------------
-
 	for i in range(SLOT_COUNT):
+
+		if i >= slot_sprites.size():
+			continue
 
 		_set_slot_frame(
 			i,
 			i == selected_slot
 		)
-
 
 		var icon_sprite := (
 			slot_sprites[i].get_node_or_null("ItemIcon")
@@ -476,10 +438,13 @@ func _refresh() -> void:
 		if icon_sprite == null:
 			continue
 
+		var item: Item = (
+			Inventory.items[i]
+			if i < Inventory.items.size()
+			else null
+		)
 
-		if i < Inventory.items.size():
-
-			var item := Inventory.items[i]
+		if item != null:
 
 			icon_sprite.texture = item.icon
 			icon_sprite.visible = item.icon != null
@@ -497,7 +462,6 @@ func _refresh() -> void:
 	preview_sprite.visible = true
 	preview_sprite.region_enabled = true
 
-
 	var preview_frame := 0
 
 	if (
@@ -506,7 +470,6 @@ func _refresh() -> void:
 	):
 
 		preview_frame = selected_slot + 1
-
 
 	preview_sprite.region_rect = Rect2(
 		PREVIEW_COL_X[preview_frame],

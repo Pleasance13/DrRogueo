@@ -3,7 +3,7 @@
 [ext_resource type="Shader" uid="uid://dlr7tvi02s6do" path="res://shaders/ui/checkerboard_bg.gdshader" id="1_p2u1u"]
 [ext_resource type="Texture2D" uid="uid://po7h18r5xa7w" path="res://art/ui/checker.png" id="2_ofxae"]
 [ext_resource type="Script" uid="uid://def8eeqykxdjj" path="res://scripts/ui/background.gd" id="3_ofxae"]
-[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/BackgroundPreset.gd" id="4_u7fjl"]
+[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="4_u7fjl"]
 [ext_resource type="Resource" uid="uid://c5byrn3mbcid6" path="res://art/palettes/background_default.tres" id="5_5h81h"]
 [ext_resource type="Resource" uid="uid://kvbdq5gvgdvf" path="res://art/palettes/background_preset1.tres" id="6_jjlr6"]
 [ext_resource type="Resource" uid="uid://cg28m1xjs432c" path="res://art/palettes/background_preset2.tres" id="7_8gt2r"]

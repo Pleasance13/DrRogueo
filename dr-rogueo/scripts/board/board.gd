@@ -36,8 +36,8 @@ var fall_speed: int = FallSpeed.LOW
 
 @export var virus_scene: PackedScene
 
-@export_range(0, 20, 1)
-var level: int = 0
+@export_range(1, 20, 1)
+var level: int = 1
 
 
 # ============================================================
@@ -65,7 +65,6 @@ var level: int = 0
 const FALL_FRAMES_LOW := 48
 const FALL_FRAMES_MEDIUM := 32
 const FALL_FRAMES_HIGH := 16
-
 
 const VANISH_DURATION := 0.30
 
@@ -98,7 +97,6 @@ var resolving_board := false
 
 
 # Active Pong Paddle item minigame, or null when none is running.
-# See start_pong_item() / pong_controller.gd.
 var pong_controller: PongController = null
 
 
@@ -143,11 +141,6 @@ func _ready() -> void:
 
 	Inventory.reset()
 
-	var pong_item := ItemPong.new()
-	pong_item.icon = preload("res://art/ui/pont-icon-temp.png")
-
-	Inventory.add_item(pong_item)
-
 	# Create the preview first.
 	create_next_preview()
 
@@ -167,6 +160,7 @@ func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 
+
 	# --------------------------------------------------------
 	# VANISHING OBJECTS
 	# --------------------------------------------------------
@@ -178,19 +172,26 @@ func _process(delta: float) -> void:
 		for half in vanishing_halves.keys():
 
 			if not is_instance_valid(half):
+
 				finished_halves.append(half)
+
 				continue
+
 
 			vanishing_halves[half] -= delta
 
+
 			if vanishing_halves[half] <= 0.0:
+
 				finished_halves.append(half)
+
 
 		for half in finished_halves:
 
 			vanishing_halves.erase(half)
 
 			if is_instance_valid(half):
+
 				half.queue_free()
 
 
@@ -205,14 +206,10 @@ func _process(delta: float) -> void:
 	# --------------------------------------------------------
 	# PONG PADDLE ITEM ACTIVE
 	# --------------------------------------------------------
-	#
-	# PongController drives itself via its own _process() (it's
-	# added as a child below in start_pong_item()) - this just
-	# suspends normal piece falling/input for as long as it's
-	# running, same as the prototype's `if (paddle) return`.
-	#
+
 	if is_instance_valid(pong_controller):
 		return
+
 
 	pong_controller = null
 
@@ -247,24 +244,24 @@ func _process(delta: float) -> void:
 
 	if can_fall:
 
-			lock_timer = 0.0
+		lock_timer = 0.0
 
-			var interval := get_fall_interval()
+		var interval := get_fall_interval()
 
-			if Input.is_action_pressed("ui_down"):
-				interval = get_soft_drop_interval()
+		if Input.is_action_pressed("ui_down"):
+			interval = get_soft_drop_interval()
 
-			fall_timer = min(fall_timer, interval)
+		fall_timer = min(fall_timer, interval)
 
-			fall_timer += delta
+		fall_timer += delta
 
-			if fall_timer >= interval:
+		if fall_timer >= interval:
 
-				fall_timer -= interval
+			fall_timer -= interval
 
-				try_move_pill(Vector2i(0, 1))
+			try_move_pill(Vector2i(0, 1))
 
-			return
+		return
 
 
 	# --------------------------------------------------------
@@ -276,6 +273,7 @@ func _process(delta: float) -> void:
 	lock_timer += delta
 
 	if lock_timer >= get_lock_interval():
+
 		settle_current_pill()
 
 
@@ -421,9 +419,16 @@ func advance_to_next_level() -> void:
 
 
 	# ========================================================
+	# GRANT PONG EVERY 3 LEVELS
+	# ========================================================
+
+	if level % 3 == 0:
+
+		grant_pong_item()
+
+
+	# ========================================================
 	# ROLL NEW BACKGROUND
-	#
-	# Screen is still black here.
 	# ========================================================
 
 	apply_new_level_background()
@@ -440,9 +445,6 @@ func advance_to_next_level() -> void:
 	# IMPORTANT:
 	#
 	# The transition flag MUST be cleared BEFORE spawn_pill().
-	#
-	# spawn_pill() intentionally refuses to create a pill while
-	# transitioning_level is true.
 	# ========================================================
 
 	transitioning_level = false
@@ -517,6 +519,7 @@ func get_lock_interval() -> float:
 
 const SOFT_DROP_FRAMES := 6
 
+
 func get_soft_drop_interval() -> float:
 
 	return float(SOFT_DROP_FRAMES) / 60.0
@@ -544,9 +547,6 @@ func grid_to_local(
 	)
 
 
-# Inverse of grid_to_local() - which cell a local-space pixel
-# position falls inside. Used by the Pong Paddle item to test
-# ball-vs-cell collision.
 func local_to_grid(
 	local_position: Vector2
 ) -> Vector2i:
@@ -561,14 +561,14 @@ func local_to_grid(
 	)
 
 
-# The board's full pixel bounds in local space - handy for
-# anything (like the Pong Paddle item) that needs to bounce
-# something off the board's own edges.
 func get_board_pixel_rect() -> Rect2:
 
 	return Rect2(
 		grid_to_local(Vector2i.ZERO),
-		Vector2(BOARD_WIDTH * CELL_SIZE, BOARD_HEIGHT * CELL_SIZE)
+		Vector2(
+			BOARD_WIDTH * CELL_SIZE,
+			BOARD_HEIGHT * CELL_SIZE
+		)
 	)
 
 
@@ -627,11 +627,11 @@ func get_starting_virus_count() -> int:
 
 	var clamped_level := clampi(
 		level,
-		0,
+		1,
 		VIRUS_LEVEL_CAP
 	)
 
-	return (clamped_level + 1) * 4
+	return clamped_level * 4
 
 
 func generate_starting_viruses() -> void:
@@ -882,13 +882,6 @@ func create_next_preview() -> void:
 
 func spawn_pill() -> void:
 
-	# --------------------------------------------------------
-	# DO NOT spawn during the black-screen transition.
-	#
-	# advance_to_next_level() now turns transitioning_level
-	# OFF before calling this function.
-	# --------------------------------------------------------
-
 	if transitioning_level:
 		return
 
@@ -901,10 +894,6 @@ func spawn_pill() -> void:
 
 		return
 
-
-	# ========================================================
-	# USE PREVIEW AS ACTIVE PILL
-	# ========================================================
 
 	if next_pill != null:
 
@@ -935,10 +924,6 @@ func spawn_pill() -> void:
 		randomize_pill_colors(current_pill)
 
 
-	# ========================================================
-	# INITIAL PILL STATE
-	# ========================================================
-
 	current_pill.orientation = Pill.Orientation.RIGHT
 
 
@@ -955,10 +940,6 @@ func spawn_pill() -> void:
 	update_pill_position()
 
 
-	# ========================================================
-	# MAKE NEXT PREVIEW
-	# ========================================================
-
 	create_next_preview()
 
 
@@ -970,16 +951,12 @@ func _handle_input() -> void:
 
 	if Input.is_action_just_pressed("ui_left"):
 
-		try_move_pill(
-			Vector2i(-1, 0)
-		)
+		try_move_pill(Vector2i(-1, 0))
 
 
 	if Input.is_action_just_pressed("ui_right"):
 
-		try_move_pill(
-			Vector2i(1, 0)
-		)
+		try_move_pill(Vector2i(1, 0))
 
 
 	if Input.is_action_just_pressed("ui_down"):
@@ -1046,10 +1023,8 @@ func is_cell_filled(
 	if occupied_cells.has(cell):
 		return true
 
-
 	if virus_cells.has(cell):
 		return true
-
 
 	return false
 
@@ -1065,7 +1040,6 @@ func get_color_at_cell(
 			as PillHalf
 		)
 
-
 		if half != null:
 			return half.pill_color
 
@@ -1076,7 +1050,6 @@ func get_color_at_cell(
 			virus_cells[cell]
 			as Virus
 		)
-
 
 		if virus != null:
 			return virus.virus_color
@@ -1106,9 +1079,10 @@ func can_pill_occupy(
 		if cell.x >= BOARD_WIDTH:
 			return false
 
-		if cell.y < 0:
-			return false
-
+		# No hard roof: cell.y can go negative (e.g. rotating a
+		# pill to vertical right at spawn, row 0) since nothing
+		# in the game ever needs to fall or move upward past the
+		# board's top edge.
 		if cell.y >= BOARD_HEIGHT:
 			return false
 
@@ -1147,7 +1121,6 @@ func _try_rotate(
 
 	var old_orientation := current_pill.orientation
 
-
 	var new_orientation := (
 		old_orientation + direction_steps
 	) % 4
@@ -1156,8 +1129,8 @@ func _try_rotate(
 	for kick in ROTATION_KICKS:
 
 		var candidate_position := (
-			current_grid_position
-			+ Vector2i(kick, 0)
+			current_grid_position +
+			Vector2i(kick, 0)
 		)
 
 
@@ -1190,10 +1163,6 @@ func settle_current_pill() -> void:
 		return
 
 
-	# ========================================================
-	# GET PILL HALVES
-	# ========================================================
-
 	var half_1 := (
 		current_pill.get_node_or_null("Half1")
 		as PillHalf
@@ -1215,17 +1184,9 @@ func settle_current_pill() -> void:
 		return
 
 
-	# ========================================================
-	# SET PARTNERS
-	# ========================================================
-
 	half_1.partner_half = half_2
 	half_2.partner_half = half_1
 
-
-	# ========================================================
-	# GET GRID CELLS
-	# ========================================================
 
 	var half_1_cell := (
 		current_pill.get_half_1_cell(
@@ -1240,10 +1201,6 @@ func settle_current_pill() -> void:
 		)
 	)
 
-
-	# ========================================================
-	# MOVE HALVES OUT OF THE ACTIVE PILL
-	# ========================================================
 
 	half_1.reparent(self, true)
 	half_2.reparent(self, true)
@@ -1261,60 +1218,43 @@ func settle_current_pill() -> void:
 	)
 
 
-	half_1.position = grid_to_local(
-		half_1_cell
-	)
+	half_1.position = grid_to_local(half_1_cell)
+	half_2.position = grid_to_local(half_2_cell)
 
-
-	half_2.position = grid_to_local(
-		half_2_cell
-	)
-
-
-	# ========================================================
-	# REGISTER ON BOARD
-	# ========================================================
 
 	occupied_cells[half_1_cell] = half_1
 	occupied_cells[half_2_cell] = half_2
 
 
-	# ========================================================
-	# REMOVE ACTIVE PILL CONTAINER
-	# ========================================================
-
 	current_pill.queue_free()
-
 	current_pill = null
 
 
 	# ========================================================
 	# PENDING ITEM
 	# ========================================================
-	#
-	# The pill has now been safely settled onto the board.
-	#
-	# If Pong is pending, fire it now instead of deleting the
-	# pill that just landed.
-	# ========================================================
+
+	var item_fired := false
 
 	if Inventory.has_pending():
 
-		var item_fired := Inventory.fire_pending(self)
+		item_fired = Inventory.fire_pending(self)
 
 		if item_fired:
 
 			fall_timer = 0.0
 			lock_timer = 0.0
 
-			return
-
 
 	# ========================================================
-	# NORMAL BOARD RESOLUTION
+	# BOARD RESOLUTION
 	# ========================================================
-
-	resolve_board()
+	#
+	# Matches always resolve, even when an item fired on this
+	# lock (e.g. Pong) - only whether a new pill spawns
+	# afterward depends on whether an item took over control.
+	#
+	resolve_board(not item_fired)
 
 
 # ============================================================
@@ -1367,7 +1307,7 @@ func get_settled_state_for_half(
 # MATCH RESOLUTION
 # ============================================================
 
-func resolve_board() -> void:
+func resolve_board(spawn_next: bool = true) -> void:
 
 	if resolving_board:
 		return
@@ -1389,7 +1329,8 @@ func resolve_board() -> void:
 		return
 
 
-	spawn_pill()
+	if spawn_next:
+		spawn_pill()
 
 
 # ============================================================
@@ -1453,10 +1394,6 @@ func _resolve_matches_and_gravity() -> bool:
 				)
 
 
-		# ----------------------------------------------------
-		# LEVEL CLEAR
-		# ----------------------------------------------------
-
 		if virus_cells.is_empty():
 
 			await wait_for_vanishing_halves()
@@ -1464,12 +1401,7 @@ func _resolve_matches_and_gravity() -> bool:
 			return true
 
 
-		# ----------------------------------------------------
-		# GRAVITY
-		# ----------------------------------------------------
-
 		await apply_gravity()
-
 
 		await wait_for_vanishing_halves()
 
@@ -1480,6 +1412,22 @@ func _resolve_matches_and_gravity() -> bool:
 # ============================================================
 # PONG PADDLE ITEM
 # ============================================================
+
+func grant_pong_item() -> void:
+
+	# Don't grant another Pong if all inventory slots are full.
+	if Inventory.is_full():
+		return
+
+
+	var pong_item := ItemPong.new()
+
+	pong_item.icon = preload(
+		"res://art/ui/pont-icon-temp.png"
+	)
+
+	Inventory.add_item(pong_item)
+
 
 func start_pong_item() -> void:
 
@@ -1494,17 +1442,8 @@ func start_pong_item() -> void:
 	pong_controller.start(self)
 
 
-# Called by PongController when the minigame ends on its own
-# (ball missed, or the combo timer ran out) - NOT when it's
-# stopped externally because the level just got cleared (see
-# pong_break_cell()/_resolve_pong_break() below, which handle
-# that case themselves).
-
 func on_pong_missed() -> void:
 
-	# The controller has already shut itself down.
-	# Clear our reference immediately so the board never
-	# continues treating a freed controller as active.
 	pong_controller = null
 
 
@@ -1517,14 +1456,6 @@ func on_pong_missed() -> void:
 		spawn_pill()
 
 
-# Applies one ball hit to whatever's at `cell` (a pill half or a
-# virus). Returns true if this hit actually broke the cell (hp
-# reached 0 and it started vanishing), false if it just took
-# damage and survived. Mirrors the prototype's clearSingleCell(),
-# but goes through the same take_hit()/vanish path normal match
-# resolution uses instead of a bespoke currency/virus-count
-# recalculation.
-
 func pong_break_cell(
 	cell: Vector2i
 ) -> bool:
@@ -1532,17 +1463,12 @@ func pong_break_cell(
 	if transitioning_level:
 		return false
 
-	# ========================================================
-	# PILL HALF
-	# ========================================================
 
 	if occupied_cells.has(cell):
 
 		var half := occupied_cells[cell] as PillHalf
 
-		# The dictionary can briefly contain a reference to an
-		# object that has already been freed while Pong and the
-		# board's async resolution are running simultaneously.
+
 		if not is_instance_valid(half):
 
 			occupied_cells.erase(cell)
@@ -1583,15 +1509,11 @@ func pong_break_cell(
 		return true
 
 
-	# ========================================================
-	# VIRUS
-	# ========================================================
-
 	if virus_cells.has(cell):
 
 		var virus := virus_cells[cell] as Virus
 
-		# Same protection for viruses.
+
 		if not is_instance_valid(virus):
 
 			virus_cells.erase(cell)
@@ -1619,27 +1541,18 @@ func pong_break_cell(
 
 	return false
 
-# Kicks off _resolve_pong_break() unless a resolve is already
-# in flight. If one IS already running (the ball broke a second
-# cell before the first one finished settling), we still did the
-# vanish/dict bookkeeping above synchronously - the running pass
-# (or whichever hit triggers the next one) will pick up the gap
-# via its own gravity pass, so nothing gets permanently stuck.
+
 func _start_pong_break_resolution() -> void:
 
 	if resolving_board:
 		return
+
 
 	resolving_board = true
 
 	_resolve_pong_break()
 
 
-# Single-cell version of _resolve_matches_and_gravity(): a Pong
-# Paddle break isn't a match, so it has to trigger its own
-# gravity pass to fill the gap it left, then hand off to the
-# normal match/gravity loop in case that gravity pass causes a
-# chain reaction.
 func _resolve_pong_break() -> void:
 
 	await wait_for_vanishing_halves()
@@ -1751,7 +1664,6 @@ func find_matches() -> Array[Vector2i]:
 
 	var matched_cells: Dictionary = {}
 
-
 	var cells_to_check: Array[Vector2i] = []
 
 
@@ -1776,10 +1688,6 @@ func find_matches() -> Array[Vector2i]:
 			continue
 
 
-		# ----------------------------------------------------
-		# HORIZONTAL
-		# ----------------------------------------------------
-
 		var horizontal: Array[Vector2i] = [
 			cell,
 			cell + Vector2i(1, 0),
@@ -1797,10 +1705,6 @@ func find_matches() -> Array[Vector2i]:
 
 				matched_cells[match_cell] = true
 
-
-		# ----------------------------------------------------
-		# VERTICAL
-		# ----------------------------------------------------
 
 		var vertical: Array[Vector2i] = [
 			cell,
@@ -1941,12 +1845,13 @@ func build_gravity_units() -> Array[Dictionary]:
 
 	var visited: Dictionary = {}
 
-	# Clean up any stale/freed entries while we're here.
 	var stale_cells: Array[Vector2i] = []
+
 
 	for cell in occupied_cells.keys():
 
 		var raw_half: Variant = occupied_cells[cell]
+
 
 		if not is_instance_valid(raw_half):
 
@@ -1957,6 +1862,7 @@ func build_gravity_units() -> Array[Dictionary]:
 
 		var half: PillHalf = raw_half as PillHalf
 
+
 		if half == null:
 
 			stale_cells.append(cell)
@@ -1965,15 +1871,11 @@ func build_gravity_units() -> Array[Dictionary]:
 
 
 		if visited.has(half):
-
 			continue
 
 
-		# ----------------------------------------------------
-		# Check for a valid partner.
-		# ----------------------------------------------------
-
 		var partner: PillHalf = null
+
 
 		if is_instance_valid(half.partner_half):
 
@@ -2011,10 +1913,6 @@ func build_gravity_units() -> Array[Dictionary]:
 				continue
 
 
-		# ----------------------------------------------------
-		# Solo half.
-		# ----------------------------------------------------
-
 		var solo_halves: Array[PillHalf] = [
 			half
 		]
@@ -2034,7 +1932,6 @@ func build_gravity_units() -> Array[Dictionary]:
 		visited[half] = true
 
 
-	# Remove dead references from occupied_cells.
 	for cell in stale_cells:
 
 		occupied_cells.erase(cell)
@@ -2061,7 +1958,6 @@ func find_half_cell(
 ) -> Variant:
 
 	if not is_instance_valid(target):
-
 		return null
 
 
@@ -2069,12 +1965,13 @@ func find_half_cell(
 
 		var raw_half: Variant = occupied_cells[cell]
 
-		if not is_instance_valid(raw_half):
 
+		if not is_instance_valid(raw_half):
 			continue
 
 
 		var half: PillHalf = raw_half as PillHalf
+
 
 		if half == target:
 
@@ -2105,27 +2002,15 @@ func gravity_unit_can_fall(
 		)
 
 
-		# ----------------------------------------------------
-		# BOARD BOTTOM
-		# ----------------------------------------------------
-
 		if destination.y >= BOARD_HEIGHT:
 
 			return false
 
 
-		# ----------------------------------------------------
-		# VIRUS COLLISION
-		# ----------------------------------------------------
-
 		if virus_cells.has(destination):
 
 			return false
 
-
-		# ----------------------------------------------------
-		# PILL HALF COLLISION
-		# ----------------------------------------------------
 
 		if occupied_cells.has(destination):
 
@@ -2134,10 +2019,6 @@ func gravity_unit_can_fall(
 			)
 
 
-			# Stale/freed reference.
-			#
-			# Remove it from the dictionary and treat the cell
-			# as empty.
 			if not is_instance_valid(raw_occupant):
 
 				occupied_cells.erase(destination)
@@ -2157,10 +2038,6 @@ func gravity_unit_can_fall(
 				continue
 
 
-			# ------------------------------------------------
-			# Own other half.
-			# ------------------------------------------------
-
 			if unit_contains_half(
 				unit,
 				occupant
@@ -2169,18 +2046,10 @@ func gravity_unit_can_fall(
 				continue
 
 
-			# ------------------------------------------------
-			# Another unit that is also moving this frame.
-			# ------------------------------------------------
-
 			if moving_halves.has(occupant):
 
 				continue
 
-
-			# ------------------------------------------------
-			# Solid pill half blocking the unit.
-			# ------------------------------------------------
 
 			return false
 
@@ -2256,18 +2125,10 @@ func move_gravity_unit(
 	)
 
 
-	# --------------------------------------------------------
-	# Remove old positions.
-	# --------------------------------------------------------
-
 	for cell in cells:
 
 		occupied_cells.erase(cell)
 
-
-	# --------------------------------------------------------
-	# Calculate destinations.
-	# --------------------------------------------------------
 
 	var destination_cells: Array[Vector2i] = []
 
@@ -2284,10 +2145,6 @@ func move_gravity_unit(
 		)
 
 
-	# --------------------------------------------------------
-	# Register destinations.
-	# --------------------------------------------------------
-
 	for i in range(halves.size()):
 
 		var half: PillHalf = halves[i]
@@ -2299,10 +2156,6 @@ func move_gravity_unit(
 
 		occupied_cells[destination] = half
 
-
-	# --------------------------------------------------------
-	# Snap sprites.
-	# --------------------------------------------------------
 
 	for i in range(halves.size()):
 

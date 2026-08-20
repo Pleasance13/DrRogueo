@@ -1,12 +1,12 @@
 [gd_scene load_steps=9 format=3 uid="uid://deqfbiljrxayr"]
 
 [ext_resource type="Texture2D" uid="uid://4jtmxh68shp3" path="res://art/ui/trait-boxes.png" id="1_0rtce"]
-[ext_resource type="Script" uid="uid://bt38qk002jsch" path="res://scenes/ui/items.gd" id="1_8dj6o"]
+[ext_resource type="Script" uid="uid://bt38qk002jsch" path="res://scripts/items/items.gd" id="1_8dj6o"]
 [ext_resource type="Texture2D" uid="uid://c0ol6eselpo4u" path="res://art/ui/item-preview-box.png" id="1_chhin"]
-[ext_resource type="Texture2D" uid="uid://buyruqa4qp31g" path="res://art/ui/item boxes.png" id="1_r7q86"]
+[ext_resource type="Texture2D" uid="uid://buyruqa4qp31g" path="res://art/ui/item-boxes.png" id="1_r7q86"]
 [ext_resource type="Texture2D" uid="uid://dkn3gmhx114bj" path="res://art/ui/item-use-button.png" id="4_q2f3j"]
 [ext_resource type="Texture2D" uid="uid://bonqo4mw7341t" path="res://art/ui/timer.png" id="6_jnq8v"]
-[ext_resource type="Shader" uid="uid://r0l50a7kknsq" path="res://scenes/ui/timer.gdshader" id="6_l5n42"]
+[ext_resource type="Shader" uid="uid://r0l50a7kknsq" path="res://shaders/ui/timer.gdshader" id="6_l5n42"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_f06em"]
 shader = ExtResource("6_l5n42")
@@ -21,13 +21,33 @@ position = Vector2(290, 34)
 texture = ExtResource("1_0rtce")
 centered = false
 
-[node name="Item-Slots" type="Sprite2D" parent="."]
+[node name="Item-Slots" type="Node2D" parent="."]
 position = Vector2(239, 105)
+
+[node name="Item-Slot-X" type="Sprite2D" parent="Item-Slots"]
 texture = ExtResource("1_r7q86")
 region_enabled = true
 region_rect = Rect2(0, 0, 28, 28)
 
-[node name="ItemIcon" type="Sprite2D" parent="Item-Slots"]
+[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-X"]
+position = Vector2(-1, -1)
+
+[node name="Item-Slot-Y" type="Sprite2D" parent="Item-Slots"]
+position = Vector2(28, 0)
+texture = ExtResource("1_r7q86")
+region_enabled = true
+region_rect = Rect2(28, 0, 28, 28)
+
+[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-Y"]
+position = Vector2(-1, -1)
+
+[node name="Item-Slot-B" type="Sprite2D" parent="Item-Slots"]
+position = Vector2(56, 0)
+texture = ExtResource("1_r7q86")
+region_enabled = true
+region_rect = Rect2(56, 0, 28, 28)
+
+[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-B"]
 position = Vector2(-1, -1)
 
 [node name="Item-Preview" type="Sprite2D" parent="."]
@@ -50,15 +70,3 @@ material = SubResource("ShaderMaterial_f06em")
 position = Vector2(34, 146)
 texture = ExtResource("6_jnq8v")
 centered = false
-
-[node name="Item-Slot-Generated-Y" type="Sprite2D" parent="."]
-position = Vector2(267, 105)
-texture = ExtResource("1_r7q86")
-region_enabled = true
-region_rect = Rect2(28, 0, 28, 28)
-
-[node name="Item-Slot-Generated-B" type="Sprite2D" parent="."]
-position = Vector2(295, 105)
-texture = ExtResource("1_r7q86")
-region_enabled = true
-region_rect = Rect2(56, 0, 28, 28)

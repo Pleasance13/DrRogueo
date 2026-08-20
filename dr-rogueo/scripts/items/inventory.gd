@@ -35,9 +35,16 @@ signal inventory_changed
 signal pending_item_changed
 
 
-var items: Array[Item] = []
+# Fixed-size, slot-indexed: items[i] is whatever occupies slot i
+# (X/Y/B in the UI), or null if that slot is empty. Items stay
+# put in their slot - using one only ever clears its own index,
+# it never shifts the others down. Must stay the same size as
+# items.gd's SLOT_COUNT.
+var items: Array[Item] = [null, null, null]
 
 var pending_item: Item = null
+
+var pending_item_slot := -1
 
 
 # ============================================================
@@ -46,10 +53,12 @@ var pending_item: Item = null
 
 func add_item(item: Item) -> bool:
 
-	if items.size() >= MAX_ITEMS:
+	var slot := items.find(null)
+
+	if slot == -1:
 		return false
 
-	items.append(item)
+	items[slot] = item
 
 	inventory_changed.emit()
 
@@ -57,7 +66,7 @@ func add_item(item: Item) -> bool:
 
 
 func is_full() -> bool:
-	return items.size() >= MAX_ITEMS
+	return items.find(null) == -1
 
 
 # ============================================================
@@ -77,13 +86,15 @@ func use_item(index: int, board: DrRogueoBoard) -> void:
 	if index < 0 or index >= items.size():
 		return
 
-	var item := items[index]
+	if items[index] == null:
+		return
 
-	items.remove_at(index)
+	pending_item = items[index]
+	pending_item_slot = index
 
-	pending_item = item
+	items[index] = null
 
-	item.on_queue(board)
+	pending_item.on_queue(board)
 
 	inventory_changed.emit()
 	pending_item_changed.emit()
@@ -107,13 +118,19 @@ func fire_pending(board: DrRogueoBoard) -> bool:
 		return false
 
 	var item := pending_item
+	var slot := pending_item_slot
 
 	pending_item = null
+	pending_item_slot = -1
 
 	var success := item.use(board)
 
 	if not success:
-		add_item(item)
+
+		items[slot] = item
+
+		inventory_changed.emit()
+
 
 	pending_item_changed.emit()
 
@@ -126,9 +143,10 @@ func fire_pending(board: DrRogueoBoard) -> bool:
 
 func reset() -> void:
 
-	items.clear()
+	items = [null, null, null]
 
 	pending_item = null
+	pending_item_slot = -1
 
 	inventory_changed.emit()
 	pending_item_changed.emit()
