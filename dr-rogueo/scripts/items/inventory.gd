@@ -2,28 +2,25 @@ extends Node
 
 
 # ============================================================
-# INVENTORY (autoload singleton)
+# INVENTORY
 # ============================================================
 #
-# Holds up to MAX_ITEMS items collected during a run.
+# Holds up to MAX_ITEMS items.
 #
-# Register this script as an autoload named "Inventory"
-# (Project Settings -> Autoload) so it's reachable from
-# anywhere as `Inventory.xxx`, same as the prototype's global
-# `run.inventory` state.
+# All items are queued when selected.
 #
-# UI hookup:
-#   - Call Inventory.use_item(index, board) when a slot is
-#     clicked. This QUEUES the item - it doesn't fire yet.
-#   - Listen for `inventory_changed` / `pending_item_changed`
-#     to redraw item slots and the "fires when this pill locks"
-#     indicator.
+# Normal items:
+#   - Are removed from inventory immediately.
+#   - Wait in pending_item.
+#   - Fire when the current pill settles.
 #
-# Board hookup (already wired into board.gd):
-#   - DrRogueoBoard.settle_current_pill() calls
-#     Inventory.fire_pending(self) right before resolving the
-#     board, same timing as the prototype's lockPiece().
+# Items that replace the next pill:
+#   - Are removed from inventory immediately.
+#   - Are attached to the NEXT pill.
+#   - Do not fire through pending_item.
 #
+# The current falling pill is NEVER modified by selecting
+# an item.
 # ============================================================
 
 
@@ -31,19 +28,17 @@ const MAX_ITEMS := 3
 
 
 signal inventory_changed
-
 signal pending_item_changed
 
 
-# Fixed-size, slot-indexed: items[i] is whatever occupies slot i
-# (X/Y/B in the UI), or null if that slot is empty. Items stay
-# put in their slot - using one only ever clears its own index,
-# it never shifts the others down. Must stay the same size as
-# items.gd's SLOT_COUNT.
+# Fixed-size inventory slots.
 var items: Array[Item] = [null, null, null]
 
+
+# Item waiting to fire when the current pill settles.
 var pending_item: Item = null
 
+# Original inventory slot of pending item.
 var pending_item_slot := -1
 
 
@@ -66,75 +61,238 @@ func add_item(item: Item) -> bool:
 
 
 func is_full() -> bool:
+
 	return items.find(null) == -1
 
 
 # ============================================================
-# QUEUEING
+# QUEUE ITEM
 # ============================================================
 #
-# Only one item can be queued at a time - while something's
-# pending, other slots should render disabled in the UI (check
-# has_pending() before calling this) so a player can't stack
-# two effects onto the same pill drop.
+# Selecting an item ALWAYS affects a future turn.
 #
-func use_item(index: int, board: DrRogueoBoard) -> void:
+# The current falling pill is completely untouched.
+#
+# Items with replaces_next_pill:
+#   Become attached to the NEXT pill.
+#
+# Other items:
+#   Wait in pending_item and fire when the current pill settles.
+# ============================================================
 
-	if pending_item != null:
+func use_item(
+	index: int,
+	board: DrRogueoBoard
+) -> void:
+
+	if board == null:
 		return
+
 
 	if index < 0 or index >= items.size():
 		return
 
+
 	if items[index] == null:
 		return
 
-	pending_item = items[index]
-	pending_item_slot = index
 
+	var item := items[index]
+
+
+	# ========================================================
+	# NEXT-PILL ITEM
+	# ========================================================
+	#
+	# Example: Tether.
+	#
+	# The item is attached to the NEXT pill immediately, but
+	# its actual effect does not happen until that pill is
+	# deployed.
+	# ========================================================
+
+	if item.replaces_next_pill:
+
+		# Don't allow another next-pill item to be attached
+		# if one is already pending on the preview.
+		if pending_item != null:
+			return
+
+
+		# Remove the item from inventory immediately.
+		items[index] = null
+
+
+		pending_item = item
+		pending_item_slot = index
+
+
+		item.on_queue(board)
+
+
+		# Attach the item to the NEXT pill.
+		if not board.arm_next_pill_item(item):
+
+			# Failed to attach.
+			items[index] = item
+
+			pending_item = null
+			pending_item_slot = -1
+
+			inventory_changed.emit()
+			pending_item_changed.emit()
+
+			return
+
+
+		# ====================================================
+		# The NEXT pill now owns the item.
+		#
+		# It should NOT also remain in pending_item, because
+		# Tether is deployed directly by the special pill.
+		# ====================================================
+
+		pending_item = null
+		pending_item_slot = -1
+
+
+		inventory_changed.emit()
+		pending_item_changed.emit()
+
+		return
+
+
+	# ========================================================
+	# NORMAL QUEUED ITEM
+	# ========================================================
+	#
+	# Example: Pong.
+	#
+	# The item is removed from inventory now, but its effect
+	# does NOT happen now.
+	#
+	# It waits until the current pill settles, at which point
+	# the board calls fire_pending().
+	# ========================================================
+
+	if pending_item != null:
+		return
+
+
+	# Remove the item from inventory immediately.
 	items[index] = null
 
-	pending_item.on_queue(board)
+
+	# Store it for the current pill's settlement.
+	pending_item = item
+	pending_item_slot = index
+
 
 	inventory_changed.emit()
 	pending_item_changed.emit()
 
 
+# ============================================================
+# PENDING STATE
+# ============================================================
+
 func has_pending() -> bool:
+
 	return pending_item != null
 
 
 # ============================================================
-# FIRING
+# GET PENDING ITEM
+# ============================================================
+
+func get_pending_item() -> Item:
+
+	return pending_item
+
+
+# ============================================================
+# COMPLETE PENDING ITEM
 # ============================================================
 #
-# Called by the board right before it resolves a locked pill.
-# If the queued item's use() reports failure, it goes back into
-# the inventory instead of being wasted.
+# Called by the board AFTER the current pill has settled.
 #
+# The item is removed from pending state and then activated.
+# ============================================================
+
 func fire_pending(board: DrRogueoBoard) -> bool:
 
 	if pending_item == null:
 		return false
 
+
 	var item := pending_item
-	var slot := pending_item_slot
+
 
 	pending_item = null
 	pending_item_slot = -1
 
+
 	var success := item.use(board)
+
 
 	if not success:
 
-		items[slot] = item
+		# The item was consumed from its original slot, so there
+		# is nowhere meaningful to refund it.
+		#
+		# Items that need transactional behavior should handle
+		# that explicitly before being consumed.
 
-		inventory_changed.emit()
+		push_warning(
+			"Inventory: Pending item failed after being consumed."
+		)
 
 
 	pending_item_changed.emit()
 
 	return success
+
+
+# ============================================================
+# CANCEL PENDING ITEM
+# ============================================================
+#
+# Used for normal queued items that need to be cancelled
+# before they fire.
+#
+# Next-pill items also have their preview state removed.
+# ============================================================
+
+func cancel_pending(board: DrRogueoBoard) -> void:
+
+	if pending_item == null:
+		return
+
+
+	var item := pending_item
+
+	var slot := pending_item_slot
+
+
+	pending_item = null
+	pending_item_slot = -1
+
+
+	if slot >= 0 and slot < items.size():
+
+		if items[slot] == null:
+
+			items[slot] = item
+
+
+	# Tell board to remove the special preview state.
+	if board != null:
+
+		board.clear_next_pill_item()
+
+
+	inventory_changed.emit()
+	pending_item_changed.emit()
 
 
 # ============================================================

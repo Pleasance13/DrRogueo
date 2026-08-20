@@ -57,6 +57,7 @@ var level: int = 1
 
 @export var pong_sprite_texture: Texture2D
 
+@export var tether_sprite_texture: Texture2D
 
 # ============================================================
 # FALL TIMINGS
@@ -88,6 +89,13 @@ var transitioning_level := false
 var current_pill: Pill
 var next_pill: Pill
 
+var next_item_preview: Sprite2D = null
+
+# Item attached to the NEXT pill.
+# This is intentionally generic so Tether, Pong, etc. can use
+# the same replacement system.
+var next_pill_item: Item = null
+
 var current_grid_position := Vector2i.ZERO
 
 var fall_timer := 0.0
@@ -102,6 +110,10 @@ var pong_controller: PongController = null
 
 # Vector2i -> PillHalf
 var occupied_cells: Dictionary = {}
+
+
+# Vector2i -> Tether
+var tether_cells: Dictionary = {}
 
 
 # Vector2i -> Virus
@@ -140,6 +152,9 @@ func _ready() -> void:
 	$Items.set_board(self)
 
 	Inventory.reset()
+
+	# Grant the starting Tether item.
+	grant_tether_item()
 
 	# Create the preview first.
 	create_next_preview()
@@ -387,12 +402,39 @@ func advance_to_next_level() -> void:
 
 	clear_occupied_cells()
 
+	clear_tether_cells()
+
 
 	# ========================================================
 	# CLEAR ALL VIRUSES
 	# ========================================================
 
 	clear_virus_cells()
+
+
+# ============================================================
+# CLEAR TETHERS
+# ============================================================
+
+func clear_tether_cells() -> void:
+
+	var tethers: Dictionary = {}
+
+	for tether in tether_cells.values():
+
+		if is_instance_valid(tether):
+
+			tethers[tether] = true
+
+
+	for tether in tethers.keys():
+
+		if is_instance_valid(tether):
+
+			tether.queue_free()
+
+
+	tether_cells.clear()
 
 
 	# ========================================================
@@ -425,6 +467,15 @@ func advance_to_next_level() -> void:
 	if level % 3 == 0:
 
 		grant_pong_item()
+
+
+	# ========================================================
+	# GRANT TETHER EVERY 2 LEVELS
+	# ========================================================
+
+	if level % 2 == 0:
+
+		grant_tether_item()
 
 
 	# ========================================================
@@ -838,12 +889,27 @@ func create_next_preview() -> void:
 		return
 
 
+	# ========================================================
+	# CLEAN UP OLD PREVIEW
+	# ========================================================
+
 	if next_pill != null:
 
 		next_pill.queue_free()
 
 		next_pill = null
 
+
+	if next_item_preview != null:
+
+		next_item_preview.queue_free()
+
+		next_item_preview = null
+
+
+	# ========================================================
+	# CREATE NORMAL PILL PREVIEW
+	# ========================================================
 
 	next_pill = pill_scene.instantiate() as Pill
 
@@ -862,6 +928,8 @@ func create_next_preview() -> void:
 
 	next_pill.orientation = Pill.Orientation.RIGHT
 
+	next_pill.is_tether_pill = false
+
 	randomize_pill_colors(next_pill)
 
 
@@ -874,6 +942,37 @@ func create_next_preview() -> void:
 	next_pill.position = grid_to_local(
 		preview_position
 	)
+
+
+	# ========================================================
+	# ITEM PREVIEW
+	# ========================================================
+	#
+	# If an item is queued for the next pill, hide the normal
+	# pill and display the item's inventory icon in its place.
+	#
+	# ========================================================
+
+	if next_pill_item != null:
+
+		if next_pill_item.icon != null:
+
+			next_item_preview = Sprite2D.new()
+
+			next_item_preview.name = "NextItemPreview"
+			next_item_preview.centered = false
+
+			next_item_preview.texture = (
+				next_pill_item.icon
+			)
+
+			next_item_preview.position = (
+				grid_to_local(preview_position)
+			)
+
+			add_child(next_item_preview)
+
+			next_pill.visible = false
 
 
 # ============================================================
@@ -894,6 +993,20 @@ func spawn_pill() -> void:
 
 		return
 
+	# ========================================================
+	# REMOVE ITEM PREVIEW
+	# ========================================================
+
+	if next_item_preview != null:
+
+		next_item_preview.queue_free()
+
+		next_item_preview = null
+
+
+	# ========================================================
+	# PROMOTE PREVIEW TO CURRENT PILL
+	# ========================================================
 
 	if next_pill != null:
 
@@ -901,6 +1014,7 @@ func spawn_pill() -> void:
 
 		next_pill = null
 
+		current_pill.visible = true
 
 	else:
 
@@ -924,8 +1038,17 @@ func spawn_pill() -> void:
 		randomize_pill_colors(current_pill)
 
 
-	current_pill.orientation = Pill.Orientation.RIGHT
+	# ========================================================
+	# RESET ORIENTATION
+	# ========================================================
 
+	current_pill.orientation = Pill.Orientation.RIGHT
+	
+	current_pill.tether_sprite_texture = tether_sprite_texture
+
+	# ========================================================
+	# SPAWN POSITION
+	# ========================================================
 
 	current_grid_position = Vector2i(
 		BOARD_WIDTH / 2 - 1,
@@ -934,13 +1057,36 @@ func spawn_pill() -> void:
 
 
 	fall_timer = 0.0
+
 	lock_timer = 0.0
 
 
 	update_pill_position()
 
 
+	# ========================================================
+	# THE OLD PREVIEW HAS NOW BECOME THE ACTIVE PLAYER PILL.
+	# ========================================================
+
+	next_pill_item = null
+
+
+	# ========================================================
+	# CREATE A NEW NORMAL PREVIEW
+	# ========================================================
+
 	create_next_preview()
+
+
+	# ========================================================
+	# NOTE: We do NOT fire the item here.
+	#
+	# Next-pill items like Tether need the player to steer the
+	# pill into position first. Firing happens only when the
+	# player deploys it (see _handle_input) or when the pill
+	# locks in without being deployed (see settle_current_pill),
+	# both of which go through Inventory.fire_pending().
+	# ========================================================
 
 
 # ============================================================
@@ -949,19 +1095,56 @@ func spawn_pill() -> void:
 
 func _handle_input() -> void:
 
+	# ========================================================
+	# TETHER PILL DEPLOYMENT
+	# ========================================================
+	#
+	# A Tether pill is already consumed from the inventory.
+	# Deployment does NOT require an inventory slot to be
+	# selected.
+	#
+	# ========================================================
+
+	if (
+		current_pill != null
+		and current_pill.is_tether_pill
+		and Input.is_action_just_pressed("ui_accept")
+	):
+
+		if await deploy_tether(
+			current_pill,
+			current_grid_position,
+			current_pill.orientation
+		):
+
+			resolve_board()
+
+			return
+
+
+	# ========================================================
+	# NORMAL MOVEMENT
+	# ========================================================
+
 	if Input.is_action_just_pressed("ui_left"):
 
-		try_move_pill(Vector2i(-1, 0))
+		try_move_pill(
+			Vector2i(-1, 0)
+		)
 
 
 	if Input.is_action_just_pressed("ui_right"):
 
-		try_move_pill(Vector2i(1, 0))
+		try_move_pill(
+			Vector2i(1, 0)
+		)
 
 
 	if Input.is_action_just_pressed("ui_down"):
 
-		if try_move_pill(Vector2i(0, 1)):
+		if try_move_pill(
+			Vector2i(0, 1)
+		):
 
 			fall_timer = 0.0
 
@@ -1024,6 +1207,9 @@ func is_cell_filled(
 		return true
 
 	if virus_cells.has(cell):
+		return true
+
+	if tether_cells.has(cell):
 		return true
 
 	return false
@@ -1094,6 +1280,489 @@ func can_pill_occupy(
 	return true
 
 
+func arm_tether_pill() -> bool:
+
+	if next_pill == null:
+		return false
+
+
+	next_pill.is_tether_pill = true
+
+	return true
+
+
+# ============================================================
+# TETHER ITEM
+# ============================================================
+
+func grant_tether_item() -> void:
+
+	if Inventory.is_full():
+		return
+
+
+	var tether_item := ItemTether.new()
+
+	tether_item.icon = load(
+		"res://art/ui/tether-icon.png"
+	)
+
+	Inventory.add_item(tether_item)
+
+
+func deploy_tether(
+	pill: Pill,
+	grid_position: Vector2i,
+	pill_orientation: int
+) -> bool:
+
+	if pill == null:
+		return false
+
+
+	if not pill.is_tether_pill:
+		return false
+
+
+	# ========================================================
+	# DETERMINE TETHER DIRECTION
+	# ========================================================
+
+	var direction := Vector2i.ZERO
+
+	var tether_orientation: int
+
+
+	match pill_orientation:
+
+		Pill.Orientation.RIGHT:
+
+			direction = Vector2i(1, 0)
+
+			tether_orientation = Tether.Orientation.HORIZONTAL
+
+
+		Pill.Orientation.LEFT:
+
+			direction = Vector2i(1, 0)
+
+			tether_orientation = Tether.Orientation.HORIZONTAL
+
+
+		Pill.Orientation.UP:
+
+			direction = Vector2i(0, 1)
+
+			tether_orientation = Tether.Orientation.VERTICAL
+
+
+		Pill.Orientation.DOWN:
+
+			direction = Vector2i(0, 1)
+
+			tether_orientation = Tether.Orientation.VERTICAL
+
+
+		_:
+
+			return false
+
+
+	# ========================================================
+	# FIND THE TWO CELLS OCCUPIED BY THE TETHER PILL
+	# ========================================================
+
+	var pill_cells: Array[Vector2i] = (
+		pill.get_occupied_cells(grid_position)
+	)
+
+
+	if pill_cells.size() != 2:
+		return false
+
+
+	var first_cell := pill_cells[0]
+
+	var second_cell := pill_cells[1]
+
+
+	# ========================================================
+	# SORT CELLS ALONG THE TETHER AXIS
+	# ========================================================
+
+	var low_cell := first_cell
+
+	var high_cell := second_cell
+
+
+	if tether_orientation == Tether.Orientation.HORIZONTAL:
+
+		if low_cell.x > high_cell.x:
+
+			low_cell = second_cell
+
+			high_cell = first_cell
+
+
+	else:
+
+		if low_cell.y > high_cell.y:
+
+			low_cell = second_cell
+
+			high_cell = first_cell
+
+
+	# ========================================================
+	# SEARCH OUTWARD FROM BOTH ENDS
+	# ========================================================
+
+	var negative_direction := -direction
+
+
+	var endpoint_a: Variant = find_tether_endpoint(
+		low_cell,
+		negative_direction
+	)
+
+
+	var endpoint_b: Variant = find_tether_endpoint(
+		high_cell,
+		direction
+	)
+
+
+	# No valid pair yet.
+	if endpoint_a == null or endpoint_b == null:
+
+		print(
+			"TETHER: could not find endpoints. A=",
+			endpoint_a,
+			" B=",
+			endpoint_b
+		)
+
+		return false
+
+
+	var endpoint_a_cell: Vector2i = endpoint_a
+
+	var endpoint_b_cell: Vector2i = endpoint_b
+
+	print(
+		"TETHER: endpoints found: ",
+		endpoint_a_cell,
+		" / ",
+		endpoint_b_cell
+	)
+
+	# ========================================================
+	# ENDPOINT COLORS
+	# ========================================================
+
+	var color_a: Variant = get_color_at_cell(
+		endpoint_a_cell
+	)
+
+
+	var color_b: Variant = get_color_at_cell(
+		endpoint_b_cell
+	)
+
+
+	if color_a == null or color_b == null:
+
+		return false
+
+
+	if color_a != color_b:
+
+		print(
+			"TETHER: colors don't match: ",
+			color_a,
+			" vs ",
+			color_b
+		)
+
+
+	# ========================================================
+	# BUILD MIDDLE CELLS
+	# ========================================================
+
+	var cells_to_create: Array[Vector2i] = []
+
+
+	if tether_orientation == Tether.Orientation.HORIZONTAL:
+
+		var start_x := mini(
+			endpoint_a_cell.x,
+			endpoint_b_cell.x
+		)
+
+
+		var end_x := maxi(
+			endpoint_a_cell.x,
+			endpoint_b_cell.x
+		)
+
+
+		for x in range(
+			start_x + 1,
+			end_x
+		):
+
+			var cell := Vector2i(
+				x,
+				endpoint_a_cell.y
+			)
+
+
+			# The cells occupied by the original falling
+			# tether pill should already be clear.
+			#
+			# Any other obstruction makes this deployment invalid.
+
+			if is_cell_filled(cell):
+
+				return false
+
+
+			cells_to_create.append(cell)
+
+
+	else:
+
+		var start_y := mini(
+			endpoint_a_cell.y,
+			endpoint_b_cell.y
+		)
+
+
+		var end_y := maxi(
+			endpoint_a_cell.y,
+			endpoint_b_cell.y
+		)
+
+
+		for y in range(
+			start_y + 1,
+			end_y
+		):
+
+			var cell := Vector2i(
+				endpoint_a_cell.x,
+				y
+			)
+
+
+			if is_cell_filled(cell):
+
+				return false
+
+
+			cells_to_create.append(cell)
+
+
+	# ========================================================
+	# REQUIRE AT LEAST ONE BRIDGE CELL
+	# ========================================================
+
+	if cells_to_create.is_empty():
+
+		return false
+
+
+	# ========================================================
+	# CREATE TETHER
+	# ========================================================
+
+	var tether := Tether.new()
+
+	add_child(tether)
+
+
+	for cell in cells_to_create:
+
+		tether_cells[cell] = tether
+
+
+	var texture := tether_sprite_texture
+
+	if texture == null:
+
+		push_warning(
+			"Board: tether_sprite_texture is NULL."
+		)
+
+		return false
+
+
+	# ========================================================
+	# REMOVE THE FALLING TETHER PILL
+	# ========================================================
+
+	pill.queue_free()
+
+	current_pill = null
+
+	fall_timer = 0.0
+
+	lock_timer = 0.0
+
+
+	# ========================================================
+	# START DEPLOYMENT
+	# ========================================================
+
+	var colors_match : bool = color_a == color_b
+
+	await tether.deploy(
+		self,
+		cells_to_create,
+		endpoint_a_cell,
+		endpoint_b_cell,
+		tether_orientation,
+		color_a as PillHalf.PillColor,
+		texture,
+		pill_cells,
+		colors_match
+	)
+
+
+	return true
+
+
+func find_tether_endpoint(
+	start_cell: Vector2i,
+	direction: Vector2i
+) -> Variant:
+
+	var cell := start_cell + direction
+
+
+	while (
+		cell.x >= 0
+		and cell.x < BOARD_WIDTH
+		and cell.y >= 0
+		and cell.y < BOARD_HEIGHT
+	):
+
+		var color : Variant = get_color_at_cell(cell)
+
+
+		if color != null:
+
+			return cell
+
+
+		# Tethers themselves are NOT valid endpoints.
+		#
+		# They also stop the search because you cannot tether
+		# through an existing tether.
+
+		if tether_cells.has(cell):
+
+			return null
+
+
+		cell += direction
+
+
+	return null
+
+
+# ============================================================
+# NEXT PILL ITEM
+# ============================================================
+
+func arm_next_pill_item(item: Item) -> bool:
+
+	if item == null:
+		return false
+
+	if next_pill == null:
+		return false
+
+	if next_pill_item != null:
+		return false
+
+
+	next_pill_item = item
+
+
+	# ========================================================
+	# ITEM-SPECIFIC PILL STATE
+	# ========================================================
+
+	if item.id == "tether":
+
+		next_pill.is_tether_pill = true
+
+	else:
+
+		next_pill.is_tether_pill = false
+
+
+	# ========================================================
+	# ITEM PREVIEW
+	# ========================================================
+	#
+	# The normal pill preview is hidden and replaced by the
+	# item's inventory icon.
+	#
+	# The actual next_pill remains underneath it so that when
+	# it becomes the current pill, it can simply be made visible
+	# again.
+	#
+	# ========================================================
+
+	if next_item_preview != null:
+
+		next_item_preview.queue_free()
+
+		next_item_preview = null
+
+
+	if item.icon != null:
+
+		next_item_preview = Sprite2D.new()
+
+		next_item_preview.name = "NextItemPreview"
+		next_item_preview.centered = false
+
+		next_item_preview.texture = item.icon
+
+		next_item_preview.position = next_pill.position
+
+		add_child(next_item_preview)
+
+		next_pill.visible = false
+
+
+	return true
+
+
+func clear_next_pill_item() -> void:
+
+	next_pill_item = null
+
+
+	if next_item_preview != null:
+
+		next_item_preview.queue_free()
+
+		next_item_preview = null
+
+
+	if next_pill != null:
+
+		next_pill.visible = true
+
+		next_pill.is_tether_pill = false
+
+		next_pill.queue_redraw()
+
+
 # ============================================================
 # ROTATION
 # ============================================================
@@ -1160,6 +1829,26 @@ func _try_rotate(
 func settle_current_pill() -> void:
 
 	if current_pill == null:
+		return
+
+
+	# ========================================================
+	# UNDEPLOYED TETHER PILL
+	# ========================================================
+
+	if current_pill.is_tether_pill:
+
+		current_pill.queue_free()
+
+		current_pill = null
+
+		fall_timer = 0.0
+		lock_timer = 0.0
+
+		next_pill_item = null
+
+		spawn_pill()
+
 		return
 
 
@@ -1250,11 +1939,15 @@ func settle_current_pill() -> void:
 	# BOARD RESOLUTION
 	# ========================================================
 	#
-	# Matches always resolve, even when an item fired on this
-	# lock (e.g. Pong) - only whether a new pill spawns
-	# afterward depends on whether an item took over control.
+	# Items such as Pong take over the game flow.
+	# Tether is different: its item is attached to the NEXT
+	# pill, so normal pill spawning should continue.
 	#
-	resolve_board(not item_fired)
+	# ========================================================
+
+	var should_spawn_next: bool = not item_fired
+
+	resolve_board(should_spawn_next)
 
 
 # ============================================================
@@ -1354,6 +2047,10 @@ func _resolve_matches_and_gravity() -> bool:
 
 		for cell in matches:
 
+			# ========================================================
+			# PILL HALF
+			# ========================================================
+
 			var half: PillHalf = (
 				occupied_cells.get(cell)
 				as PillHalf
@@ -1375,6 +2072,10 @@ func _resolve_matches_and_gravity() -> bool:
 				continue
 
 
+			# ========================================================
+			# VIRUS
+			# ========================================================
+
 			var virus: Virus = (
 				virus_cells.get(cell)
 				as Virus
@@ -1393,20 +2094,78 @@ func _resolve_matches_and_gravity() -> bool:
 					VANISH_DURATION
 				)
 
-
-		if virus_cells.is_empty():
-
-			await wait_for_vanishing_halves()
-
-			return true
+				continue
 
 
-		await apply_gravity()
+			# ========================================================
+			# TETHER
+			# ========================================================
+
+			var tether: Tether = (
+				tether_cells.get(cell)
+				as Tether
+			)
+
+
+			if tether != null:
+
+				_remove_tether(tether)
+
+
+		# ========================================================
+		# WAIT FOR VANISHING
+		# ========================================================
 
 		await wait_for_vanishing_halves()
 
 
+		# ========================================================
+		# GRAVITY
+		# ========================================================
+
+		await apply_gravity()
+
+
+		# ========================================================
+		# LEVEL CLEAR
+		# ========================================================
+
+		if virus_cells.is_empty():
+
+			return true
+
+
+	# Godot requires an explicit return because this function
+	# is typed as -> bool.
 	return false
+
+
+func _remove_tether(
+	tether: Tether
+) -> void:
+
+	if tether == null:
+		return
+
+
+	var cells_to_remove: Array[Vector2i] = []
+
+
+	for cell in tether_cells.keys():
+
+		if tether_cells[cell] == tether:
+
+			cells_to_remove.append(cell)
+
+
+	for cell in cells_to_remove:
+
+		tether_cells.erase(cell)
+
+
+	if is_instance_valid(tether):
+
+		tether.queue_free()
 
 
 # ============================================================
@@ -1511,7 +2270,7 @@ func pong_break_cell(
 
 	if virus_cells.has(cell):
 
-		var virus := virus_cells[cell] as Virus
+		var virus : Virus = virus_cells[cell] as Virus
 
 
 		if not is_instance_valid(virus):
@@ -1679,49 +2438,55 @@ func find_matches() -> Array[Vector2i]:
 
 	for cell in cells_to_check:
 
-		var color: Variant = (
-			get_color_at_cell(cell)
-		)
+		var color: Variant = get_color_at_cell(cell)
 
 
 		if color == null:
 			continue
 
 
-		var horizontal: Array[Vector2i] = [
+		# ----------------------------------------------------
+		# Horizontal
+		# ----------------------------------------------------
+
+		var horizontal_result := find_line_match(
 			cell,
-			cell + Vector2i(1, 0),
-			cell + Vector2i(2, 0),
-			cell + Vector2i(3, 0)
-		]
-
-
-		if line_matches(
-			horizontal,
+			Vector2i(1, 0),
 			color
-		):
+		)
 
-			for match_cell in horizontal:
+
+		if horizontal_result["matched"]:
+
+			for match_cell in horizontal_result["cells"]:
 
 				matched_cells[match_cell] = true
 
+			for tether_cell in horizontal_result["tethers"]:
 
-		var vertical: Array[Vector2i] = [
+				matched_cells[tether_cell] = true
+
+
+		# ----------------------------------------------------
+		# Vertical
+		# ----------------------------------------------------
+
+		var vertical_result := find_line_match(
 			cell,
-			cell + Vector2i(0, 1),
-			cell + Vector2i(0, 2),
-			cell + Vector2i(0, 3)
-		]
-
-
-		if line_matches(
-			vertical,
+			Vector2i(0, 1),
 			color
-		):
+		)
 
-			for match_cell in vertical:
+
+		if vertical_result["matched"]:
+
+			for match_cell in vertical_result["cells"]:
 
 				matched_cells[match_cell] = true
+
+			for tether_cell in vertical_result["tethers"]:
+
+				matched_cells[tether_cell] = true
 
 
 	var result: Array[Vector2i] = []
@@ -1733,6 +2498,99 @@ func find_matches() -> Array[Vector2i]:
 
 
 	return result
+
+
+func find_line_match(
+	start_cell: Vector2i,
+	direction: Vector2i,
+	color: int
+) -> Dictionary:
+
+	var matched: Array[Vector2i] = []
+	var traversed_tethers: Array[Vector2i] = []
+
+
+	var cell := start_cell
+
+
+	while (
+		cell.x >= 0
+		and cell.x < BOARD_WIDTH
+		and cell.y >= 0
+		and cell.y < BOARD_HEIGHT
+	):
+
+		var found_color : Variant = get_color_at_cell(cell)
+
+
+		# ----------------------------------------------------
+		# Colored cell
+		# ----------------------------------------------------
+
+		if found_color != null:
+
+			if found_color != color:
+				break
+
+			matched.append(cell)
+
+			cell += direction
+
+			continue
+
+
+		# ----------------------------------------------------
+		# Tether
+		# ----------------------------------------------------
+
+		if tether_cells.has(cell):
+
+			var tether := tether_cells[cell] as Tether
+
+			if tether == null:
+				break
+
+
+			if not tether.connects_in_direction(
+				cell,
+				direction
+			):
+
+				break
+
+
+			if tether.tether_color != color:
+				break
+
+
+			traversed_tethers.append(cell)
+
+			cell += direction
+
+			continue
+
+
+		# ----------------------------------------------------
+		# Empty cell
+		# ----------------------------------------------------
+
+		break
+
+
+	if matched.size() >= 4:
+
+		return {
+			"matched": true,
+			"cells": matched,
+			"tethers": traversed_tethers
+		}
+
+
+	return {
+		"matched": false,
+		"cells": [],
+		"tethers": []
+	}
 
 
 # ============================================================
@@ -2008,6 +2866,11 @@ func gravity_unit_can_fall(
 
 
 		if virus_cells.has(destination):
+
+			return false
+
+
+		if tether_cells.has(destination):
 
 			return false
 
