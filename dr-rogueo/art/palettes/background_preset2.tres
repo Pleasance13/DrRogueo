@@ -1,11 +1,20 @@
-[gd_resource type="Resource" script_class="DrRogueoBackgroundPreset" load_steps=2 format=3 uid="uid://cg28m1xjs432c"]
+[gd_resource type="Resource" script_class="BackgroundPreset" load_steps=2 format=3 uid="uid://cg28m1xjs432c"]
 
-[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/BackgroundPreset.gd" id="1_cuuyq"]
+[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="1_cuuyq"]
 
 [resource]
 script = ExtResource("1_cuuyq")
 preset_name = "preset 2"
+category = 0
 light_color = Color(0.54902, 0.611765, 1, 1)
 dark_color = Color(0.45098, 0.133333, 0.839216, 1)
 shadow_color = Color(0.223529, 0, 0.478431, 1)
+wave_width = 1.5
+wave_depth = 0.03
+wave_speed = 0.25
+shade_brightness = 0.0
+shade_contrast = 3.0
+shade_strength = 1.0
+dither_type = 2
+dither_scale = 1.0
 metadata/_custom_type_script = "uid://dxg2fi13nn65r"

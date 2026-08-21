@@ -246,9 +246,10 @@ func _initialize_runtime() -> void:
 # Editor previews have absolutely no effect on this.
 # ============================================================
 
-func apply_random_preset() -> void:
-	
-	print("BG preset: old=", _runtime_preset_index, " material=", material, " is_shader=", material is ShaderMaterial)
+
+func apply_random_preset(
+	category: BackgroundPreset.Category = BackgroundPreset.Category.NORMAL
+) -> void:
 
 	if not use_color_presets:
 		return
@@ -258,12 +259,14 @@ func apply_random_preset() -> void:
 
 
 	# --------------------------------------------------------
-	# Find all valid preset entries.
+	# Find all valid preset entries matching the requested pool.
 	# --------------------------------------------------------
 
 	for i in range(color_presets.size()):
 
-		if color_presets[i] != null:
+		var preset := color_presets[i]
+
+		if preset != null and preset.category == category:
 			valid_indices.append(i)
 
 
@@ -400,9 +403,21 @@ func apply_preset(preset: BackgroundPreset) -> void:
 	dark_color = preset.dark_color
 	shadow_color = preset.shadow_color
 
+	wave_width = preset.wave_width
+	wave_depth = preset.wave_depth
+	wave_speed = preset.wave_speed
+
+	shade_brightness = preset.shade_brightness
+	shade_contrast = preset.shade_contrast
+	shade_strength = preset.shade_strength
+
+	dither_type = preset.dither_type
+	dither_scale = preset.dither_scale
+
 	_update_shader()
 
 	palette_changed.emit(light_color, dark_color, shadow_color)
+
 
 # ============================================================
 # GET PRESET COLOR

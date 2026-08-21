@@ -1420,34 +1420,45 @@ func deploy_tether(
 	var negative_direction := -direction
 
 
-	var endpoint_a: Variant = find_tether_endpoint(
+	var endpoint_a_result: Variant = find_tether_endpoint(
 		low_cell,
 		negative_direction
 	)
 
 
-	var endpoint_b: Variant = find_tether_endpoint(
+	var endpoint_b_result: Variant = find_tether_endpoint(
 		high_cell,
 		direction
 	)
 
 
-	# No valid pair yet.
-	if endpoint_a == null or endpoint_b == null:
+	# Null only happens when blocked by an existing tether --
+	# that's still a hard failure to deploy at all.
+	if endpoint_a_result == null or endpoint_b_result == null:
 
 		print(
-			"TETHER: could not find endpoints. A=",
-			endpoint_a,
+			"TETHER: could not find endpoints (blocked by tether). A=",
+			endpoint_a_result,
 			" B=",
-			endpoint_b
+			endpoint_b_result
 		)
 
 		return false
 
 
-	var endpoint_a_cell: Vector2i = endpoint_a
+	var endpoint_a_data: Dictionary = endpoint_a_result
 
-	var endpoint_b_cell: Vector2i = endpoint_b
+	var endpoint_b_data: Dictionary = endpoint_b_result
+
+
+	var endpoint_a_cell: Vector2i = endpoint_a_data["cell"]
+
+	var endpoint_b_cell: Vector2i = endpoint_b_data["cell"]
+
+
+	var endpoint_a_hit_wall: bool = endpoint_a_data["hit_wall"]
+
+	var endpoint_b_hit_wall: bool = endpoint_b_data["hit_wall"]
 
 	print(
 		"TETHER: endpoints found: ",
@@ -1470,15 +1481,25 @@ func deploy_tether(
 	)
 
 
-	if color_a == null or color_b == null:
+	# A wall hit is always treated as a mismatch, even if the
+	# other side found a valid color.
+	var colors_match: bool = (
+		not endpoint_a_hit_wall
+		and not endpoint_b_hit_wall
+		and color_a != null
+		and color_b != null
+		and color_a == color_b
+	)
 
-		return false
 
-
-	if color_a != color_b:
+	if not colors_match:
 
 		print(
-			"TETHER: colors don't match: ",
+			"TETHER: broken -- wall=",
+			endpoint_a_hit_wall,
+			"/",
+			endpoint_b_hit_wall,
+			" colors=",
 			color_a,
 			" vs ",
 			color_b
@@ -1506,9 +1527,29 @@ func deploy_tether(
 		)
 
 
+		# ----------------------------------------------------
+		# A wall endpoint is an empty cell, not an occupant --
+		# it should be included in the bridge itself so the
+		# tether visually reaches all the way to the wall.
+		# ----------------------------------------------------
+
+		var range_start := start_x + 1
+
+		if endpoint_a_hit_wall:
+
+			range_start = start_x
+
+
+		var range_end := end_x
+
+		if endpoint_b_hit_wall:
+
+			range_end = end_x + 1
+
+
 		for x in range(
-			start_x + 1,
-			end_x
+			range_start,
+			range_end
 		):
 
 			var cell := Vector2i(
@@ -1544,9 +1585,23 @@ func deploy_tether(
 		)
 
 
+		var range_start := start_y + 1
+
+		if endpoint_a_hit_wall:
+
+			range_start = start_y
+
+
+		var range_end := end_y
+
+		if endpoint_b_hit_wall:
+
+			range_end = end_y + 1
+
+
 		for y in range(
-			start_y + 1,
-			end_y
+			range_start,
+			range_end
 		):
 
 			var cell := Vector2i(
@@ -1614,7 +1669,16 @@ func deploy_tether(
 	# START DEPLOYMENT
 	# ========================================================
 
-	var colors_match : bool = color_a == color_b
+	var tether_color: int = PillHalf.PillColor.RED
+
+	if color_a != null:
+
+		tether_color = color_a
+
+	elif color_b != null:
+
+		tether_color = color_b
+
 
 	await tether.deploy(
 		self,
@@ -1622,10 +1686,12 @@ func deploy_tether(
 		endpoint_a_cell,
 		endpoint_b_cell,
 		tether_orientation,
-		color_a as PillHalf.PillColor,
+		tether_color,
 		texture,
 		pill_cells,
-		colors_match
+		colors_match,
+		endpoint_a_hit_wall,
+		endpoint_b_hit_wall
 	)
 
 
@@ -1647,18 +1713,45 @@ func find_tether_endpoint(
 		and cell.y < BOARD_HEIGHT
 	):
 
-		var color : Variant = get_color_at_cell(cell)
+		# ----------------------------------------------------
+		# TOP BOARD EDGE
+		# ----------------------------------------------------
+		#
+		# Row 0 is treated as a wall endpoint rather than
+		# a tether cell.
+		#
+		# This lets the tether visually reach the top border
+		# while keeping row 0 free for the pill spawn.
+		# ----------------------------------------------------
+
+		if (
+			direction == Vector2i(0, -1)
+			and cell.y == 0
+		):
+
+			return {
+				"cell": cell,
+				"hit_wall": true
+			}
+
+
+		var color: Variant = get_color_at_cell(cell)
 
 
 		if color != null:
 
-			return cell
+			return {
+				"cell": cell,
+				"hit_wall": false
+			}
 
 
-		# Tethers themselves are NOT valid endpoints.
+		# ----------------------------------------------------
+		# EXISTING TETHER
+		# ----------------------------------------------------
 		#
-		# They also stop the search because you cannot tether
-		# through an existing tether.
+		# Tethers cannot be crossed or used as endpoints.
+		# ----------------------------------------------------
 
 		if tether_cells.has(cell):
 
@@ -1668,7 +1761,16 @@ func find_tether_endpoint(
 		cell += direction
 
 
-	return null
+	# ========================================================
+	# RAN OFF THE BOARD EDGE
+	# ========================================================
+
+	var wall_cell := cell - direction
+
+	return {
+		"cell": wall_cell,
+		"hit_wall": true
+	}
 
 
 # ============================================================

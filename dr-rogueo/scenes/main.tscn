@@ -34,6 +34,7 @@ position = Vector2(-2, 0)
 wave_depth = 0.02
 light_color = Color(0.831373, 0.615686, 0.160784, 1)
 dark_color = Color(0.596078, 0.215686, 0, 1)
+use_color_presets = true
 shadow_color = Color(0.309804, 0.0627451, 0, 1)
 shade_brightness = 0.08
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://b5teuusodhg1u"]
+[gd_scene load_steps=12 format=3 uid="uid://b5teuusodhg1u"]
 
 [ext_resource type="Shader" uid="uid://dlr7tvi02s6do" path="res://shaders/ui/checkerboard_bg.gdshader" id="1_p2u1u"]
 [ext_resource type="Texture2D" uid="uid://po7h18r5xa7w" path="res://art/ui/checker.png" id="2_ofxae"]
@@ -9,18 +9,19 @@
 [ext_resource type="Resource" uid="uid://cg28m1xjs432c" path="res://art/palettes/background_preset2.tres" id="7_8gt2r"]
 [ext_resource type="Resource" uid="uid://kkk6xhdvhxb4" path="res://art/palettes/background_preset3.tres" id="8_txc43"]
 [ext_resource type="Resource" uid="uid://cktel5ohlh46k" path="res://art/palettes/background_preset4.tres" id="9_yijyj"]
+[ext_resource type="Resource" uid="uid://txittmxg8mpk" path="res://art/palettes/background_preset_boss1.tres" id="10_5h81h"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ofxae"]
 shader = ExtResource("1_p2u1u")
-shader_parameter/wave_width = 0.95
-shader_parameter/wave_depth = 0.025
+shader_parameter/wave_width = 0.65
+shader_parameter/wave_depth = 0.02
 shader_parameter/wave_speed = 0.25
-shader_parameter/light_color = Color(0.223529, 0, 0.478431, 1)
-shader_parameter/dark_color = Color(0, 0, 0, 1)
-shader_parameter/shade_brightness = 0.14
+shader_parameter/light_color = Color(0.831373, 0.615686, 0.160784, 1)
+shader_parameter/dark_color = Color(0.596078, 0.215686, 0, 1)
+shader_parameter/shade_brightness = 0.08
 shader_parameter/shade_contrast = 3.0
 shader_parameter/shade_strength = 1.0
-shader_parameter/shadow_color = Color(0, 0, 0, 1)
+shader_parameter/shadow_color = Color(0.309804, 0.0627451, 0, 1)
 shader_parameter/dither_type = 2
 shader_parameter/dither_scale = 1.0
 
@@ -33,11 +34,12 @@ material = SubResource("ShaderMaterial_ofxae")
 texture = ExtResource("2_ofxae")
 offset = Vector2(213.5, 120)
 script = ExtResource("3_ofxae")
-wave_width = 0.95
-light_color = Color(0.223529, 0, 0.478431, 1)
+wave_width = 0.65
+light_color = Color(0, 0, 0, 1)
 dark_color = Color(0, 0, 0, 1)
 use_color_presets = false
-color_presets = Array[ExtResource("4_u7fjl")]([ExtResource("5_5h81h"), ExtResource("6_jjlr6"), ExtResource("7_8gt2r"), ExtResource("8_txc43"), ExtResource("9_yijyj")])
-shade_brightness = 0.14
+color_presets = Array[ExtResource("4_u7fjl")]([ExtResource("5_5h81h"), ExtResource("6_jjlr6"), ExtResource("7_8gt2r"), ExtResource("8_txc43"), ExtResource("9_yijyj"), ExtResource("10_5h81h")])
+shadow_color = Color(0.223529, 0, 0.478431, 1)
+shade_brightness = 0.3
 shade_contrast = 3.0
 shade_strength = 1.0

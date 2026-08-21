@@ -323,8 +323,8 @@ func _draw() -> void:
 
 		Orientation.LEFT:
 
-			region_1 = TETHER_HORIZONTAL_RIGHT
-			region_2 = TETHER_HORIZONTAL_LEFT
+			region_1 = TETHER_HORIZONTAL_LEFT
+			region_2 = TETHER_HORIZONTAL_RIGHT
 
 			position_1 = Vector2(0, 0)
 			position_2 = Vector2(CELL_SIZE, 0)

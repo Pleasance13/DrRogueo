@@ -12,14 +12,24 @@ extends Node2D
 #
 #   1. Tether pill disappears.
 #   2. Tether ends show their DEPLOYING sprites.
-#   3. After a short delay, the bridge extends outward from
-#      both endpoints simultaneously.
+#   3. After a short delay, the bridge grows outward from
+#      the middle toward both endpoints simultaneously.
 #   4. Once fully extended, the tether remains persistent if
 #      the endpoint colors match.
 #   5. If the endpoint colors do NOT match, the tether waits
 #      briefly after fully extending, then breaks.
 #
-# If either endpoint pill is destroyed, the tether breaks.
+# A wall endpoint behaves like a mismatched color:
+# it still fully deploys, then breaks.
+#
+# IMPORTANT:
+#
+# deploy() does not finish until the visual deployment is
+# completely finished. Board.gd can therefore safely:
+#
+#     await tether.deploy(...)
+#
+# and know that the next pill will not spawn prematurely.
 #
 # ============================================================
 
@@ -71,6 +81,13 @@ const REGION_HORIZONTAL_RIGHT_DEPLOYED := Rect2(8, 40, 8, 8)
 
 
 # ============================================================
+# SIGNALS
+# ============================================================
+
+signal deployment_finished
+
+
+# ============================================================
 # STATE
 # ============================================================
 
@@ -92,8 +109,13 @@ var original_pill_cells: Array[Vector2i] = []
 # Whether the two endpoint colors matched when deployed.
 #
 # A mismatched tether still fully deploys, but breaks after
-# the deployment completes.
+# deployment completes.
 var colors_match := true
+
+# Whether each endpoint hit the board edge instead of finding
+# a colored cell.
+var endpoint_a_hit_wall := false
+var endpoint_b_hit_wall := false
 
 
 # ============================================================
@@ -106,8 +128,11 @@ var deployment_timer := 0.0
 var extension_started := false
 var deploy_timer := 0.0
 
-var cells_from_start := 0
-var cells_from_end := 0
+# Number of tether cells currently revealed.
+#
+# These cells are always centered around the middle of the
+# tether and expand outward toward both endpoints.
+var visible_cells := 0
 
 
 # ============================================================
@@ -132,7 +157,9 @@ func deploy(
 	p_color: PillHalf.PillColor,
 	p_texture: Texture2D,
 	p_original_pill_cells: Array[Vector2i],
-	p_colors_match: bool
+	p_colors_match: bool,
+	p_endpoint_a_hit_wall: bool = false,
+	p_endpoint_b_hit_wall: bool = false
 ) -> void:
 
 	board = dr_board
@@ -154,18 +181,35 @@ func deploy(
 
 	colors_match = p_colors_match
 
+	endpoint_a_hit_wall = p_endpoint_a_hit_wall
+	endpoint_b_hit_wall = p_endpoint_b_hit_wall
+
 	deploying = true
 	deployment_timer = 0.0
 
 	extension_started = false
 	deploy_timer = 0.0
 
-	cells_from_start = 0
-	cells_from_end = 0
+	visible_cells = 0
 
 	endpoint_check_timer = 0.0
 
 	queue_redraw()
+
+
+	# ========================================================
+	# IMPORTANT:
+	#
+	# Wait here until the deployment has actually finished.
+	#
+	# This makes:
+	#
+	#     await tether.deploy(...)
+	#
+	# in Board.gd meaningful.
+	# ========================================================
+
+	await deployment_finished
 
 
 # ============================================================
@@ -205,6 +249,21 @@ func _process(delta: float) -> void:
 			extension_started = true
 			deploy_timer = 0.0
 
+
+			# Start at the middle.
+			#
+			# Odd-length tethers start with one center cell.
+			# Even-length tethers start with two center cells.
+
+			if tether_cells.size() % 2 == 1:
+
+				visible_cells = 1
+
+			else:
+
+				visible_cells = 2
+
+
 			queue_redraw()
 
 		return
@@ -218,11 +277,7 @@ func _process(delta: float) -> void:
 		return
 
 
-	if (
-		cells_from_start +
-		cells_from_end
-		>= tether_cells.size()
-	):
+	if visible_cells >= tether_cells.size():
 
 		extension_started = false
 
@@ -230,12 +285,12 @@ func _process(delta: float) -> void:
 
 
 		# ----------------------------------------------------
-		# MISMATCHED COLORS
+		# MISMATCHED COLORS / WALL
 		# ----------------------------------------------------
 		#
-		# The tether has now fully connected. Give the player
-		# a brief moment to see it before destroying it.
-		#
+		# The tether has now fully connected.
+		# Give the player a brief moment to see it before
+		# destroying it.
 		# ----------------------------------------------------
 
 		if not colors_match:
@@ -244,11 +299,29 @@ func _process(delta: float) -> void:
 				DEPLOY_COMPLETE_DELAY
 			).timeout
 
+
 			# The tether may already have been destroyed while
 			# we were waiting.
-			if is_instance_valid(self):
 
-				break_tether()
+			if not is_instance_valid(self):
+
+				return
+
+
+			break_tether()
+
+			return
+
+
+		# ----------------------------------------------------
+		# VALID TETHER
+		# ----------------------------------------------------
+		#
+		# It is now fully deployed and persistent.
+		# Tell Board.gd it is safe to continue.
+		# ----------------------------------------------------
+
+		deployment_finished.emit()
 
 		return
 
@@ -263,25 +336,17 @@ func _process(delta: float) -> void:
 
 
 	# --------------------------------------------------------
-	# EXTEND FROM BOTH ENDS SIMULTANEOUSLY
+	# EXTEND OUTWARD FROM THE CENTER
+	# --------------------------------------------------------
+	#
+	# Every tick adds one cell to each side.
 	# --------------------------------------------------------
 
-	if (
-		cells_from_start +
-		cells_from_end
-		< tether_cells.size()
-	):
+	visible_cells += 2
 
-		cells_from_start += 1
+	if visible_cells > tether_cells.size():
 
-
-	if (
-		cells_from_start +
-		cells_from_end
-		< tether_cells.size()
-	):
-
-		cells_from_end += 1
+		visible_cells = tether_cells.size()
 
 
 	queue_redraw()
@@ -304,65 +369,117 @@ func _draw() -> void:
 		return
 
 
-	var visible_count := mini(
-		cells_from_start +
-		cells_from_end,
-		tether_cells.size()
-	)
+	var total_cells := tether_cells.size()
 
-
-	if visible_count <= 0:
+	if total_cells <= 0:
 		return
 
 
+	if visible_cells <= 0:
+		return
+
+
+	var start_index := 0
+	var end_index := total_cells - 1
+
+
 	# --------------------------------------------------------
-	# DRAW VISIBLE TETHER
+	# CALCULATE THE VISIBLE CENTER RANGE
 	# --------------------------------------------------------
 
-	for i in range(visible_count):
+	if total_cells % 2 == 1:
 
-		var cell := tether_cells[i]
+		var center_index := total_cells / 2
+		var half_visible := visible_cells / 2
 
-		var region: Rect2
-
-
-		# First visible cell is the left/top end.
-
-		if i == 0:
-
-			if orientation == Orientation.HORIZONTAL:
-
-				region = REGION_HORIZONTAL_LEFT_END
-
-			else:
-
-				region = REGION_VERTICAL_TOP_END
+		start_index = center_index - half_visible
+		end_index = center_index + half_visible
 
 
-		# Last visible cell is the right/bottom end.
+	else:
 
-		elif i == visible_count - 1:
+		start_index = (
+			(total_cells - visible_cells) / 2
+		)
 
-			if orientation == Orientation.HORIZONTAL:
-
-				region = REGION_HORIZONTAL_RIGHT_END
-
-			else:
-
-				region = REGION_VERTICAL_BOTTOM_END
+		end_index = (
+			start_index +
+			visible_cells -
+			1
+		)
 
 
-		# Everything between the ends is middle.
+	start_index = maxi(
+		start_index,
+		0
+	)
+
+	end_index = mini(
+		end_index,
+		total_cells - 1
+	)
+
+
+	# --------------------------------------------------------
+	# DRAW VISIBLE CENTER RANGE
+	# --------------------------------------------------------
+
+	for i in range(
+		start_index,
+		end_index + 1
+	):
+
+		_draw_tether_segment(
+			i,
+			total_cells
+		)
+
+
+# ============================================================
+# DRAW TETHER SEGMENT
+# ============================================================
+
+func _draw_tether_segment(
+	index: int,
+	total_cells: int
+) -> void:
+
+	var cell := tether_cells[index]
+
+	var region: Rect2
+
+
+	if index == 0:
+
+		if orientation == Orientation.HORIZONTAL:
+
+			region = REGION_HORIZONTAL_LEFT_END
 
 		else:
 
-			region = REGION_FOR_MIDDLE()
+			region = REGION_VERTICAL_TOP_END
 
 
-		_draw_region_at_cell(
-			region,
-			cell
-		)
+	elif index == total_cells - 1:
+
+		if orientation == Orientation.HORIZONTAL:
+
+			region = REGION_HORIZONTAL_RIGHT_END
+
+		else:
+
+			region = REGION_VERTICAL_BOTTOM_END
+
+
+	else:
+
+		region = REGION_FOR_MIDDLE()
+
+
+	_draw_region_at_cell(
+		region,
+		cell
+	)
 
 
 # ============================================================
@@ -435,6 +552,7 @@ func REGION_FOR_MIDDLE() -> Rect2:
 
 		return REGION_HORIZONTAL_MIDDLE
 
+
 	return REGION_VERTICAL_MIDDLE
 
 
@@ -480,33 +598,56 @@ func _endpoints_are_valid() -> bool:
 		return false
 
 
-	if not board.is_cell_filled(endpoint_a):
-		return false
+	# --------------------------------------------------------
+	# WALL ENDPOINTS
+	# --------------------------------------------------------
+
+	if not endpoint_a_hit_wall:
+
+		if not board.is_cell_filled(endpoint_a):
+			return false
 
 
-	if not board.is_cell_filled(endpoint_b):
-		return false
+	if not endpoint_b_hit_wall:
+
+		if not board.is_cell_filled(endpoint_b):
+			return false
 
 
 	# --------------------------------------------------------
-	# During deployment, the endpoints are allowed to have
-	# different colors. That's the whole point of the
-	# mismatch behavior.
+	# MISMATCHED COLORS
+	# --------------------------------------------------------
 	#
-	# Once deployment has completed, a mismatched tether is
-	# already scheduled to break.
+	# During deployment, mismatched endpoints are allowed.
+	# They will break after deployment completes.
 	# --------------------------------------------------------
 
 	if not colors_match:
 		return true
 
 
-	if board.get_color_at_cell(endpoint_a) != tether_color:
-		return false
+	# --------------------------------------------------------
+	# MATCHING ENDPOINT COLOR VALIDATION
+	# --------------------------------------------------------
+
+	if not endpoint_a_hit_wall:
+
+		if (
+			board.get_color_at_cell(endpoint_a)
+			!= tether_color
+		):
+
+			return false
 
 
-	if board.get_color_at_cell(endpoint_b) != tether_color:
-		return false
+	if not endpoint_b_hit_wall:
+
+		if (
+			board.get_color_at_cell(endpoint_b)
+			!= tether_color
+		):
+
+			return false
 
 
 	return true
@@ -520,6 +661,15 @@ func break_tether() -> void:
 
 	deploying = false
 	extension_started = false
+
+
+	# --------------------------------------------------------
+	# Tell deploy() that deployment is finished BEFORE
+	# removing the tether from the board.
+	# --------------------------------------------------------
+
+	deployment_finished.emit()
+
 
 	if board != null:
 
