@@ -1,6 +1,15 @@
 @tool
 class_name Background
-extends Sprite2D
+extends Node2D
+
+
+# ============================================================
+# CHECKERBOARD
+# ============================================================
+
+@export_category("Checkerboard")
+
+@export var checkerboard_path: NodePath = NodePath("Checkerboard")
 
 
 # ============================================================
@@ -33,18 +42,6 @@ var wave_speed: float = 0.25:
 # ============================================================
 # CHECKERBOARD COLORS
 # ============================================================
-#
-# These are the MANUAL colors.
-#
-# They are also used by the editor when previewing presets.
-#
-# IMPORTANT:
-#
-# In preset mode, these values are NOT considered the runtime
-# source of truth.
-# ============================================================
-
-@export_category("Checkerboard")
 
 @export
 var light_color: Color = Color("#F8F8F8"):
@@ -94,20 +91,22 @@ var shadow_color: Color = Color.BLACK:
 
 
 # ============================================================
-# RUNTIME PRESET STATE
+# RUNTIME PRESET
 # ============================================================
-#
-# NONE of these variables are exported.
-#
-# Therefore:
-#
-# - Inspector preview cannot save them.
-# - Saving the scene cannot change them.
-# - Restarting the game starts with a fresh runtime state.
+
+@export_category("Runtime")
+
+@export
+var runtime_preset_category: BackgroundPreset.Category = (
+	BackgroundPreset.Category.NORMAL
+)
+
+
+# ============================================================
+# RUNTIME PRESET STATE
 # ============================================================
 
 var _runtime_preset_index: int = -1
-
 var _runtime_initialized: bool = false
 
 
@@ -171,27 +170,49 @@ var dither_scale: float = 1.0:
 # ============================================================
 
 func _ready() -> void:
+
 	_update_shader()
 
+
 	# --------------------------------------------------------
-	# The editor should ONLY display the currently previewed
-	# colors.
+	# Editor only displays the currently previewed colors.
 	# --------------------------------------------------------
+
 	if Engine.is_editor_hint():
 		return
 
+
 	add_to_group("palette_source")
+
 
 	# --------------------------------------------------------
 	# Runtime initialization is deferred until the complete
 	# scene tree has finished entering the scene.
-	#
-	# This prevents the serialized editor-preview colors from
-	# being mistaken for the game's starting palette.
 	# --------------------------------------------------------
+
 	call_deferred(
 		"_initialize_runtime"
 	)
+
+
+# ============================================================
+# GET CHECKERBOARD
+# ============================================================
+
+func _get_checkerboard() -> Sprite2D:
+
+	var checkerboard := get_node_or_null(
+		checkerboard_path
+	) as Sprite2D
+
+	if checkerboard == null:
+
+		push_warning(
+			"Background: Could not find Checkerboard Sprite2D at: "
+			+ str(checkerboard_path)
+		)
+
+	return checkerboard
 
 
 # ============================================================
@@ -203,10 +224,8 @@ func _initialize_runtime() -> void:
 	if Engine.is_editor_hint():
 		return
 
-
 	if _runtime_initialized:
 		return
-
 
 	_runtime_initialized = true
 
@@ -217,19 +236,17 @@ func _initialize_runtime() -> void:
 
 	if use_color_presets:
 
-		# Completely discard the editor preview state as the
-		# runtime selection.
 		_runtime_preset_index = -1
 
-		apply_random_preset()
+		apply_random_preset(
+			runtime_preset_category
+		)
 
 		return
 
 
 	# --------------------------------------------------------
 	# Manual mode.
-	#
-	# The serialized colors ARE the desired colors here.
 	# --------------------------------------------------------
 
 	_update_shader()
@@ -238,14 +255,6 @@ func _initialize_runtime() -> void:
 # ============================================================
 # RANDOM PRESET
 # ============================================================
-#
-# Picks a random preset.
-#
-# The previous RUNTIME preset is excluded.
-#
-# Editor previews have absolutely no effect on this.
-# ============================================================
-
 
 func apply_random_preset(
 	category: BackgroundPreset.Category = BackgroundPreset.Category.NORMAL
@@ -259,7 +268,7 @@ func apply_random_preset(
 
 
 	# --------------------------------------------------------
-	# Find all valid preset entries matching the requested pool.
+	# Find presets belonging to the requested pool.
 	# --------------------------------------------------------
 
 	for i in range(color_presets.size()):
@@ -267,15 +276,22 @@ func apply_random_preset(
 		var preset := color_presets[i]
 
 		if preset != null and preset.category == category:
+
 			valid_indices.append(i)
 
 
 	if valid_indices.is_empty():
+
+		push_warning(
+			"Background: No presets found for category: "
+			+ str(category)
+		)
+
 		return
 
 
 	# --------------------------------------------------------
-	# One preset.
+	# Only one preset in this pool.
 	# --------------------------------------------------------
 
 	if valid_indices.size() == 1:
@@ -292,15 +308,15 @@ func apply_random_preset(
 
 
 	# --------------------------------------------------------
-	# Build a list excluding the previous RUNTIME preset.
+	# Exclude previous runtime preset.
 	# --------------------------------------------------------
 
 	var available_indices: Array[int] = []
 
-
 	for index in valid_indices:
 
 		if index != _runtime_preset_index:
+
 			available_indices.append(index)
 
 
@@ -314,7 +330,7 @@ func apply_random_preset(
 
 
 	# --------------------------------------------------------
-	# Choose the new runtime preset.
+	# Choose new preset.
 	# --------------------------------------------------------
 
 	var new_index: int = available_indices[
@@ -323,7 +339,6 @@ func apply_random_preset(
 			available_indices.size() - 1
 		)
 	]
-
 
 	_runtime_preset_index = new_index
 
@@ -336,33 +351,13 @@ func apply_random_preset(
 # ============================================================
 # PREVIEW PRESET
 # ============================================================
-#
-# Called by the inspector Load button.
-#
-# IMPORTANT:
-#
-# This does NOT touch _runtime_preset_index.
-#
-# Therefore:
-#
-#     Preview purple in editor
-#
-# does NOT mean:
-#
-#     Game thinks purple was last used.
-# ============================================================
 
 func preview_preset(
 	preset_index: int
 ) -> void:
 
-	# --------------------------------------------------------
-	# Editor-only operation.
-	# --------------------------------------------------------
-
 	if preset_index < 0:
 		return
-
 
 	if preset_index >= color_presets.size():
 		return
@@ -370,16 +365,9 @@ func preview_preset(
 
 	var preset := color_presets[preset_index]
 
-
 	if preset == null:
 		return
 
-
-	# --------------------------------------------------------
-	# Apply ONLY as an editor preview.
-	#
-	# Do not update _runtime_preset_index.
-	# --------------------------------------------------------
 
 	apply_preset(preset)
 
@@ -387,17 +375,19 @@ func preview_preset(
 # ============================================================
 # APPLY PRESET
 # ============================================================
-#
-# Generic preset application.
-#
-# Used for editor previewing.
-# ============================================================
 
-signal palette_changed(light_color: Color, dark_color: Color, shadow_color: Color)
+signal palette_changed(
+	light_color: Color,
+	dark_color: Color,
+	shadow_color: Color
+)
+
 
 func apply_preset(preset: BackgroundPreset) -> void:
+
 	if preset == null:
 		return
+
 
 	light_color = preset.light_color
 	dark_color = preset.dark_color
@@ -414,17 +404,19 @@ func apply_preset(preset: BackgroundPreset) -> void:
 	dither_type = preset.dither_type
 	dither_scale = preset.dither_scale
 
+
 	_update_shader()
 
-	palette_changed.emit(light_color, dark_color, shadow_color)
+
+	palette_changed.emit(
+		light_color,
+		dark_color,
+		shadow_color
+	)
 
 
 # ============================================================
 # GET PRESET COLOR
-# ============================================================
-#
-# Useful to the inspector for displaying the three palette
-# swatches beside each Load button.
 # ============================================================
 
 func get_preset_color(
@@ -466,9 +458,16 @@ func get_runtime_preset_index() -> int:
 
 func _update_shader() -> void:
 
-	if not material:
+	var checkerboard := _get_checkerboard()
+
+	if checkerboard == null:
 		return
 
+
+	var material := checkerboard.material
+
+	if not material:
+		return
 
 	if not material is ShaderMaterial:
 		return
@@ -482,60 +481,50 @@ func _update_shader() -> void:
 		wave_width
 	)
 
-
 	shader_material.set_shader_parameter(
 		"wave_depth",
 		wave_depth
 	)
-
 
 	shader_material.set_shader_parameter(
 		"wave_speed",
 		wave_speed
 	)
 
-
 	shader_material.set_shader_parameter(
 		"light_color",
 		light_color
 	)
-
 
 	shader_material.set_shader_parameter(
 		"dark_color",
 		dark_color
 	)
 
-
 	shader_material.set_shader_parameter(
 		"shade_brightness",
 		shade_brightness
 	)
-
 
 	shader_material.set_shader_parameter(
 		"shade_contrast",
 		shade_contrast
 	)
 
-
 	shader_material.set_shader_parameter(
 		"shade_strength",
 		shade_strength
 	)
-
 
 	shader_material.set_shader_parameter(
 		"shadow_color",
 		shadow_color
 	)
 
-
 	shader_material.set_shader_parameter(
 		"dither_type",
 		int(dither_type)
 	)
-
 
 	shader_material.set_shader_parameter(
 		"dither_scale",

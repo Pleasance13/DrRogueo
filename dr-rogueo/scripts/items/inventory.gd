@@ -60,6 +60,27 @@ func add_item(item: Item) -> bool:
 	return true
 
 
+func add_item_to_slot(
+	item: Item,
+	slot: int
+) -> bool:
+
+	if item == null:
+		return false
+
+	if slot < 0 or slot >= items.size():
+		return false
+
+	if items[slot] != null:
+		return false
+
+	items[slot] = item
+
+	inventory_changed.emit()
+
+	return true
+
+
 func is_full() -> bool:
 
 	return items.find(null) == -1

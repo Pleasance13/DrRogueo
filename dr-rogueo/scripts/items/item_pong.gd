@@ -12,10 +12,19 @@ extends Item
 #
 # ============================================================
 
+const PONG_TEXTURE_PATH := "res://art/pills/pong.png"
+const PONG_ICON_PATH := "res://art/ui/pong-icon-temp.png"
 
 func _init() -> void:
+
 	id = "pong"
-	display_name = "Pong Paddle"
+
+	display_name = "PONG PILL"
+
+	rarity = Item.Rarity.RARE
+
+	cost = 08
+
 	description = (
 		"Summons a paddle at the top of the board that stays " +
 		"until you miss. Move it with left/right; press down to " +
@@ -24,6 +33,10 @@ func _init() -> void:
 		"run out, or miss the ball, and the minigame ends. Pill " +
 		"falling pauses the whole time."
 	)
+
+	#replaces_next_pill = true
+
+	icon = load(PONG_ICON_PATH)
 
 
 func use(board: DrRogueoBoard) -> bool:

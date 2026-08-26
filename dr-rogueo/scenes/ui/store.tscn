@@ -1,0 +1,433 @@
+[gd_scene load_steps=35 format=3 uid="uid://dc1kkw0qxwj0y"]
+
+[ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_bh2q3"]
+[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_e0lh1"]
+[ext_resource type="Resource" uid="uid://c5byrn3mbcid6" path="res://art/palettes/background_default.tres" id="3_2bj56"]
+[ext_resource type="FontFile" uid="uid://dl2gw4blk118s" path="res://fonts/tiny-mono-pixel-font.ttf" id="3_c56s1"]
+[ext_resource type="Resource" uid="uid://kvbdq5gvgdvf" path="res://art/palettes/background_preset1.tres" id="4_hcjtv"]
+[ext_resource type="Resource" uid="uid://cg28m1xjs432c" path="res://art/palettes/background_preset2.tres" id="5_ef4ni"]
+[ext_resource type="Resource" uid="uid://kkk6xhdvhxb4" path="res://art/palettes/background_preset3.tres" id="6_h3bup"]
+[ext_resource type="Resource" uid="uid://cktel5ohlh46k" path="res://art/palettes/background_preset4.tres" id="7_2umx5"]
+[ext_resource type="Resource" uid="uid://txittmxg8mpk" path="res://art/palettes/background_preset_boss1.tres" id="8_pw5g0"]
+[ext_resource type="Resource" uid="uid://l4n4e1rpwdsv" path="res://art/palettes/background_preset_boss2.tres" id="9_eu672"]
+[ext_resource type="Resource" uid="uid://bdqjqfsniyex0" path="res://art/palettes/background_preset_store.tres" id="10_tb6l5"]
+[ext_resource type="Texture2D" uid="uid://5nsieot2r40c" path="res://art/store-ui-placement-guide.png" id="11_tfjff"]
+[ext_resource type="Texture2D" uid="uid://c8oy678vn3pv0" path="res://art/ui/store-counter.png" id="12_3x43k"]
+[ext_resource type="Texture2D" uid="uid://q2ad67x7uyyg" path="res://art/ui/toad-body.png" id="13_p55js"]
+[ext_resource type="Texture2D" uid="uid://gepav3cyhnrn" path="res://art/ui/toad-head-mouthclose.png" id="14_qvgk3"]
+[ext_resource type="Texture2D" uid="uid://b5u2bdbafkkvk" path="res://art/ui/toad-head-default.png" id="15_v17vb"]
+[ext_resource type="Texture2D" uid="uid://c3mx6kweocunx" path="res://art/ui/toad-head-blink.png" id="16_lp6vt"]
+[ext_resource type="Texture2D" uid="uid://cvl8ef4vbgtlw" path="res://art/ui/buy-button.png" id="17_qyicm"]
+[ext_resource type="Script" uid="uid://doyr6l3y6nk8q" path="res://scripts/ui/menu_selectable.gd" id="18_qvgk3"]
+[ext_resource type="Texture2D" uid="uid://ch53sol4hoa3l" path="res://art/ui/restock-button.png" id="18_v5l2g"]
+[ext_resource type="Texture2D" uid="uid://gn6my4pcwv2d" path="res://art/ui/HL-store-buy-restock.png" id="19_jba6u"]
+[ext_resource type="Texture2D" uid="uid://hkpcfuq718ta" path="res://art/ui/store-item-slots.png" id="19_ntqax"]
+[ext_resource type="Texture2D" uid="uid://csos3kvdm2xpq" path="res://art/ui/store-clipboard.png" id="20_jba6u"]
+[ext_resource type="Texture2D" uid="uid://dvwrsgdctvgx5" path="res://art/ui/store-bottles.png" id="22_c56s1"]
+[ext_resource type="Texture2D" uid="uid://b04k1d0d3rrsk" path="res://art/ui/continue-button.png" id="23_3x43k"]
+[ext_resource type="Texture2D" uid="uid://8htijjuwosst" path="res://art/ui/coin.png" id="23_8lq3c"]
+[ext_resource type="Texture2D" uid="uid://dxckm6l8y1qmj" path="res://art/ui/HL-store-continue.png" id="25_7swx0"]
+[ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="25_c56s1"]
+[ext_resource type="Script" uid="uid://cvhkwixrqlqv0" path="res://scripts/ui/store_menu_controller.gd" id="25_v17vb"]
+[ext_resource type="Texture2D" uid="uid://b0cv8p1n3p1b7" path="res://art/ui/HL-store-bottles.png" id="27_c56s1"]
+[ext_resource type="Texture2D" uid="uid://bvvj6wgv6t7vl" path="res://art/ui/HL-store-items.png" id="28_8lq3c"]
+[ext_resource type="Texture2D" uid="uid://px07y25go7oc" path="res://art/ui/HL-store-traits.png" id="29_iyybn"]
+[ext_resource type="Texture2D" uid="uid://dkq8447k7hked" path="res://art/ui/HL-store-item-slots.png" id="30_1ef5v"]
+[ext_resource type="Script" uid="uid://qd23hhpfo12t" path="res://scripts/ui/store_controller.gd" id="31_store"]
+
+[node name="Store" type="Node2D"]
+texture_filter = 1
+script = ExtResource("31_store")
+coin_label_path = NodePath("")
+coin_texture = ExtResource("23_8lq3c")
+label_font = ExtResource("3_c56s1")
+label_position = Vector2(192, 200)
+label_alignment = 1
+rarity_font = ExtResource("3_c56s1")
+rarity_font_size = 6
+rarity_position = Vector2(192, 208)
+rarity_alignment = 1
+price_font = ExtResource("25_c56s1")
+price_font_size = 8
+price_position = Vector2(31, 18)
+price_alignment = 1
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+offset_right = 427.0
+offset_bottom = 240.0
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+handle_input_locally = false
+size = Vector2i(427, 240)
+render_target_update_mode = 4
+
+[node name="Background" parent="SubViewportContainer/SubViewport" instance=ExtResource("1_bh2q3")]
+color_presets = Array[ExtResource("2_e0lh1")]([ExtResource("3_2bj56"), ExtResource("4_hcjtv"), ExtResource("5_ef4ni"), ExtResource("6_h3bup"), ExtResource("7_2umx5"), ExtResource("8_pw5g0"), ExtResource("9_eu672"), ExtResource("10_tb6l5")])
+
+[node name="Checkerboard" parent="SubViewportContainer/SubViewport/Background" index="0"]
+position = Vector2(-2, 0)
+
+[node name="LayoutGuide" type="Sprite2D" parent="."]
+visible = false
+texture = ExtResource("11_tfjff")
+centered = false
+
+[node name="Counter" type="Sprite2D" parent="."]
+texture = ExtResource("12_3x43k")
+centered = false
+offset = Vector2(8, 21)
+
+[node name="Toad" type="Node2D" parent="."]
+
+[node name="Body" type="Sprite2D" parent="Toad"]
+texture = ExtResource("13_p55js")
+centered = false
+offset = Vector2(126, 44)
+
+[node name="Head" type="Sprite2D" parent="Toad/Body"]
+texture = ExtResource("14_qvgk3")
+centered = false
+offset = Vector2(126, 44)
+
+[node name="Talk" type="Sprite2D" parent="Toad/Body"]
+texture = ExtResource("15_v17vb")
+centered = false
+offset = Vector2(126, 44)
+
+[node name="Blink" type="Sprite2D" parent="Toad/Body"]
+visible = false
+position = Vector2(14, 33)
+texture = ExtResource("16_lp6vt")
+centered = false
+offset = Vector2(112, 11)
+
+[node name="BuyButton" type="Sprite2D" parent="."]
+position = Vector2(256, 146)
+texture = ExtResource("17_qyicm")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 44, 29)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../Traits/Trait3")
+neighbor_down = NodePath("../RestockButton")
+neighbor_left = NodePath("../Items/Item3")
+neighbor_right = NodePath("../OwnedItems/OwnedItem1")
+
+[node name="Highlight" type="Sprite2D" parent="BuyButton"]
+position = Vector2(-2, -2)
+texture = ExtResource("19_jba6u")
+centered = false
+
+[node name="RestockButton" type="Sprite2D" parent="."]
+position = Vector2(256, 179)
+texture = ExtResource("18_v5l2g")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 44, 29)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../BuyButton")
+neighbor_down = NodePath("../Traits/Trait1")
+neighbor_left = NodePath("../Items/Item6")
+neighbor_right = NodePath("../ContinueButton")
+
+[node name="Highlight" type="Sprite2D" parent="RestockButton"]
+position = Vector2(-2, -2)
+texture = ExtResource("19_jba6u")
+centered = false
+
+[node name="ItemSlots" type="Sprite2D" parent="."]
+texture = ExtResource("19_ntqax")
+centered = false
+offset = Vector2(324, 125)
+
+[node name="Clipboard" type="Sprite2D" parent="."]
+texture = ExtResource("20_jba6u")
+centered = false
+offset = Vector2(316, 18)
+
+[node name="ContinueButton" type="Sprite2D" parent="."]
+position = Vector2(323, 179)
+texture = ExtResource("23_3x43k")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 82, 29)
+script = ExtResource("18_qvgk3")
+neighbor_left = NodePath("../RestockButton")
+neighbor_right = NodePath("../Items/Item4")
+
+[node name="Highlight" type="Sprite2D" parent="ContinueButton"]
+position = Vector2(-2, -2)
+texture = ExtResource("25_7swx0")
+centered = false
+
+[node name="Bottles" type="Node2D" parent="."]
+
+[node name="Bottle1" type="Sprite2D" parent="Bottles"]
+position = Vector2(21, 101)
+texture = ExtResource("22_c56s1")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 18, 30)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Items/Item4")
+neighbor_down = NodePath("../../Items/Item1")
+neighbor_left = NodePath("../../OwnedTraits/OwnedTrait3")
+neighbor_right = NodePath("../Bottle2")
+
+[node name="Highlight" type="Sprite2D" parent="Bottles/Bottle1"]
+position = Vector2(-2, -2)
+texture = ExtResource("27_c56s1")
+centered = false
+
+[node name="Bottle2" type="Sprite2D" parent="Bottles"]
+position = Vector2(43, 101)
+texture = ExtResource("22_c56s1")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 18, 30)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Items/Item4")
+neighbor_down = NodePath("../../Items/Item1")
+neighbor_left = NodePath("../Bottle1")
+neighbor_right = NodePath("../Bottle3")
+
+[node name="Highlight" type="Sprite2D" parent="Bottles/Bottle2"]
+position = Vector2(-2, -2)
+texture = ExtResource("27_c56s1")
+centered = false
+
+[node name="Bottle3" type="Sprite2D" parent="Bottles"]
+position = Vector2(65, 101)
+texture = ExtResource("22_c56s1")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 18, 30)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Items/Item5")
+neighbor_down = NodePath("../../Items/Item2")
+neighbor_left = NodePath("../Bottle2")
+neighbor_right = NodePath("../Bottle4")
+
+[node name="Highlight" type="Sprite2D" parent="Bottles/Bottle3"]
+position = Vector2(-2, -2)
+texture = ExtResource("27_c56s1")
+centered = false
+
+[node name="Bottle4" type="Sprite2D" parent="Bottles"]
+position = Vector2(87, 101)
+texture = ExtResource("22_c56s1")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 18, 30)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Items/Item5")
+neighbor_down = NodePath("../../Items/Item2")
+neighbor_left = NodePath("../Bottle3")
+neighbor_right = NodePath("../../Traits/Trait3")
+
+[node name="Highlight" type="Sprite2D" parent="Bottles/Bottle4"]
+position = Vector2(-2, -2)
+texture = ExtResource("27_c56s1")
+centered = false
+
+[node name="Items" type="Node2D" parent="."]
+
+[node name="Item1" type="Node2D" parent="Items"]
+position = Vector2(19, 147)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Bottles/Bottle1")
+neighbor_down = NodePath("../Item4")
+neighbor_left = NodePath("../../OwnedItems/OwnedItem3")
+neighbor_right = NodePath("../Item2")
+
+[node name="Highlight" type="Sprite2D" parent="Items/Item1"]
+texture = ExtResource("28_8lq3c")
+centered = false
+
+[node name="Item2" type="Node2D" parent="Items"]
+position = Vector2(74, 147)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Bottles/Bottle4")
+neighbor_down = NodePath("../Item5")
+neighbor_left = NodePath("../Item1")
+neighbor_right = NodePath("../Item3")
+
+[node name="Highlight" type="Sprite2D" parent="Items/Item2"]
+texture = ExtResource("28_8lq3c")
+centered = false
+
+[node name="Item3" type="Node2D" parent="Items"]
+position = Vector2(129, 147)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../Bottles/Bottle4")
+neighbor_down = NodePath("../Item6")
+neighbor_left = NodePath("../Item2")
+neighbor_right = NodePath("../../BuyButton")
+
+[node name="Highlight" type="Sprite2D" parent="Items/Item3"]
+texture = ExtResource("28_8lq3c")
+centered = false
+
+[node name="Item4" type="Node2D" parent="Items"]
+position = Vector2(19, 180)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../Item1")
+neighbor_down = NodePath("../../Bottles/Bottle1")
+neighbor_left = NodePath("../../ContinueButton")
+neighbor_right = NodePath("../Item5")
+
+[node name="Highlight" type="Sprite2D" parent="Items/Item4"]
+texture = ExtResource("28_8lq3c")
+centered = false
+
+[node name="Item5" type="Node2D" parent="Items"]
+position = Vector2(74, 180)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../Item2")
+neighbor_down = NodePath("../../Bottles/Bottle4")
+neighbor_left = NodePath("../Item4")
+neighbor_right = NodePath("../Item6")
+
+[node name="Highlight" type="Sprite2D" parent="Items/Item5"]
+texture = ExtResource("28_8lq3c")
+centered = false
+
+[node name="Item6" type="Node2D" parent="Items"]
+position = Vector2(129, 180)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../Item3")
+neighbor_down = NodePath("../../Bottles/Bottle4")
+neighbor_left = NodePath("../Item5")
+neighbor_right = NodePath("../../RestockButton")
+
+[node name="Highlight" type="Sprite2D" parent="Items/Item6"]
+texture = ExtResource("28_8lq3c")
+centered = false
+
+[node name="Traits" type="Node2D" parent="."]
+
+[node name="Trait1" type="Node2D" parent="Traits"]
+position = Vector2(254, 37)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../RestockButton")
+neighbor_down = NodePath("../Trait2")
+neighbor_left = NodePath("../../Bottles/Bottle4")
+neighbor_right = NodePath("../../OwnedTraits/OwnedTrait1")
+
+[node name="Highlight" type="Sprite2D" parent="Traits/Trait1"]
+position = Vector2(-2, -2)
+texture = ExtResource("29_iyybn")
+centered = false
+
+[node name="Trait2" type="Node2D" parent="Traits"]
+position = Vector2(254, 62)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../Trait1")
+neighbor_down = NodePath("../Trait3")
+neighbor_left = NodePath("../../Bottles/Bottle4")
+neighbor_right = NodePath("../../OwnedTraits/OwnedTrait1")
+
+[node name="Highlight" type="Sprite2D" parent="Traits/Trait2"]
+position = Vector2(-2, -2)
+texture = ExtResource("29_iyybn")
+centered = false
+
+[node name="Trait3" type="Node2D" parent="Traits"]
+position = Vector2(254, 87)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../Trait2")
+neighbor_down = NodePath("../../BuyButton")
+neighbor_left = NodePath("../../Bottles/Bottle4")
+neighbor_right = NodePath("../../OwnedTraits/OwnedTrait1")
+
+[node name="Highlight" type="Sprite2D" parent="Traits/Trait3"]
+position = Vector2(-2, -2)
+texture = ExtResource("29_iyybn")
+centered = false
+
+[node name="OwnedTraits" type="Node2D" parent="."]
+
+[node name="OwnedTrait1" type="Node2D" parent="OwnedTraits"]
+position = Vector2(333, 123)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../ContinueButton")
+neighbor_down = NodePath("../../OwnedItems/OwnedItem1")
+neighbor_left = NodePath("../../BuyButton")
+neighbor_right = NodePath("../OwnedTrait2")
+
+[node name="Highlight" type="Sprite2D" parent="OwnedTraits/OwnedTrait1"]
+texture = ExtResource("29_iyybn")
+centered = false
+
+[node name="OwnedTrait2" type="Node2D" parent="OwnedTraits"]
+position = Vector2(354, 123)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../ContinueButton")
+neighbor_down = NodePath("../../OwnedItems/OwnedItem2")
+neighbor_left = NodePath("../OwnedTrait1")
+neighbor_right = NodePath("../OwnedTrait3")
+
+[node name="Highlight" type="Sprite2D" parent="OwnedTraits/OwnedTrait2"]
+texture = ExtResource("29_iyybn")
+centered = false
+
+[node name="OwnedTrait3" type="Node2D" parent="OwnedTraits"]
+position = Vector2(375, 123)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../ContinueButton")
+neighbor_down = NodePath("../../OwnedItems/OwnedItem3")
+neighbor_left = NodePath("../OwnedTrait2")
+neighbor_right = NodePath("../../Bottles/Bottle1")
+
+[node name="Highlight" type="Sprite2D" parent="OwnedTraits/OwnedTrait3"]
+texture = ExtResource("29_iyybn")
+centered = false
+
+[node name="OwnedItems" type="Node2D" parent="."]
+
+[node name="OwnedItem1" type="Node2D" parent="OwnedItems"]
+position = Vector2(322, 144)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../OwnedTraits/OwnedTrait1")
+neighbor_down = NodePath("../../ContinueButton")
+neighbor_left = NodePath("../../BuyButton")
+neighbor_right = NodePath("../OwnedItem2")
+
+[node name="Highlight" type="Sprite2D" parent="OwnedItems/OwnedItem1"]
+texture = ExtResource("30_1ef5v")
+centered = false
+
+[node name="OwnedItem2" type="Node2D" parent="OwnedItems"]
+position = Vector2(350, 144)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../OwnedTraits/OwnedTrait2")
+neighbor_down = NodePath("../../ContinueButton")
+neighbor_left = NodePath("../OwnedItem1")
+neighbor_right = NodePath("../OwnedItem3")
+
+[node name="Highlight" type="Sprite2D" parent="OwnedItems/OwnedItem2"]
+texture = ExtResource("30_1ef5v")
+centered = false
+
+[node name="OwnedItem3" type="Node2D" parent="OwnedItems"]
+position = Vector2(378, 144)
+script = ExtResource("18_qvgk3")
+neighbor_up = NodePath("../../OwnedTraits/OwnedTrait3")
+neighbor_down = NodePath("../../ContinueButton")
+neighbor_left = NodePath("../OwnedItem2")
+neighbor_right = NodePath("../../Items/Item1")
+
+[node name="Highlight" type="Sprite2D" parent="OwnedItems/OwnedItem3"]
+texture = ExtResource("30_1ef5v")
+centered = false
+
+[node name="MenuController" type="Node" parent="."]
+script = ExtResource("25_v17vb")
+current_path = NodePath("../Items/Item1")
+owned_item_paths = Array[NodePath]([NodePath("../OwnedItems/OwnedItem1"), NodePath("../OwnedItems/OwnedItem2"), NodePath("../OwnedItems/OwnedItem3")])
+owned_trait_paths = Array[NodePath]([NodePath("../OwnedTraits/OwnedTrait1"), NodePath("../OwnedTraits/OwnedTrait2"), NodePath("../OwnedTraits/OwnedTrait3")])
+continue_button_path = NodePath("../ContinueButton")
+buy_button_path = NodePath("../BuyButton")
+store_item_paths = Array[NodePath]([NodePath("../Items/Item1"), NodePath("../Items/Item2"), NodePath("../Items/Item3"), NodePath("../Items/Item4"), NodePath("../Items/Item5"), NodePath("../Items/Item6")])
+
+[editable path="SubViewportContainer/SubViewport/Background"]

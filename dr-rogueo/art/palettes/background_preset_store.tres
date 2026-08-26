@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BackgroundPreset" load_steps=2 format=3 uid="uid://bdqjqfsniyex0"]
+
+[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="1_8tluy"]
+
+[resource]
+script = ExtResource("1_8tluy")
+preset_name = "store"
+category = 2
+light_color = Color(0.27451, 0.796078, 0.505882, 1)
+dark_color = Color(0, 0.462745, 0.270588, 1)
+shadow_color = Color(0, 0.223529, 0.141176, 1)
+wave_width = 1.5
+wave_depth = 0.03
+wave_speed = 0.25
+shade_brightness = 0.0
+shade_contrast = 3.0
+shade_strength = 1.0
+dither_type = 2
+dither_scale = 1.0
+metadata/_custom_type_script = "uid://dxg2fi13nn65r"

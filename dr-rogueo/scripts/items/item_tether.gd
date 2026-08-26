@@ -14,7 +14,11 @@ func _init() -> void:
 
 	id = "tether"
 
-	display_name = "Tether Pill"
+	display_name = "TETHER PILL"
+
+	rarity = Item.Rarity.COMMON
+
+	cost = 05
 
 	description = (
 		"Creates a temporary bridge between the first matching " +

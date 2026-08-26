@@ -59,6 +59,25 @@ var level: int = 1
 
 @export var tether_sprite_texture: Texture2D
 
+
+# ============================================================
+# STORE
+# ============================================================
+
+@export_category("Store")
+
+@export var store_scene: PackedScene
+
+const STORE_INTERVAL := 5
+const COINS_PER_LEVEL := 5
+
+var coins := 0
+
+var store_controller: StoreController = null
+
+var store_waiting := false
+
+
 # ============================================================
 # FALL TIMINGS
 # ============================================================
@@ -2284,7 +2303,7 @@ func grant_pong_item() -> void:
 	var pong_item := ItemPong.new()
 
 	pong_item.icon = preload(
-		"res://art/ui/pont-icon-temp.png"
+		"res://art/ui/pong-icon-temp.png"
 	)
 
 	Inventory.add_item(pong_item)

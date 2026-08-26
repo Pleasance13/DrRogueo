@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_hltam")
-preset_name = "Boss1"
+preset_name = "boss 1"
 category = 1
 light_color = Color(0, 0, 0, 1)
 dark_color = Color(0, 0, 0, 1)
