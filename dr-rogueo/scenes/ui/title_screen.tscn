@@ -1,0 +1,77 @@
+[gd_scene load_steps=18 format=3 uid="uid://b0becqhd40ctb"]
+
+[ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_1oiph"]
+[ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_5p4sa"]
+[ext_resource type="Resource" uid="uid://c5byrn3mbcid6" path="res://art/palettes/background_default.tres" id="3_tqags"]
+[ext_resource type="Resource" uid="uid://kvbdq5gvgdvf" path="res://art/palettes/background_preset1.tres" id="4_to824"]
+[ext_resource type="Resource" uid="uid://cg28m1xjs432c" path="res://art/palettes/background_preset2.tres" id="5_y77df"]
+[ext_resource type="Resource" uid="uid://kkk6xhdvhxb4" path="res://art/palettes/background_preset3.tres" id="6_jqmgk"]
+[ext_resource type="Resource" uid="uid://cktel5ohlh46k" path="res://art/palettes/background_preset4.tres" id="7_una1u"]
+[ext_resource type="Resource" uid="uid://txittmxg8mpk" path="res://art/palettes/background_preset_boss1.tres" id="8_rtmth"]
+[ext_resource type="Resource" uid="uid://l4n4e1rpwdsv" path="res://art/palettes/background_preset_boss2.tres" id="9_7avnr"]
+[ext_resource type="Resource" uid="uid://bdqjqfsniyex0" path="res://art/palettes/background_preset_store.tres" id="10_5c0cl"]
+[ext_resource type="Texture2D" uid="uid://cx8vgl3x6kd3t" path="res://art/ui/logo-pill.png" id="11_ytagk"]
+[ext_resource type="Texture2D" uid="uid://g6don2k7xywb" path="res://art/ui/logo-virus.png" id="12_qo84g"]
+[ext_resource type="Script" uid="uid://yir8nuf2e2r" path="res://scenes/ui/title_virus.gd" id="13_5p4sa"]
+[ext_resource type="Texture2D" uid="uid://b4rs84a7bfdhu" path="res://art/ui/logo.png" id="13_nccv4"]
+[ext_resource type="Texture2D" uid="uid://tip0vnqhkynr" path="res://art/ui/press-A.png" id="15_tqags"]
+[ext_resource type="Script" uid="uid://c8s1iuq41dh62" path="res://scenes/ui/press_a.gd" id="16_to824"]
+[ext_resource type="Script" uid="uid://blxe3g54reiaj" path="res://scenes/ui/title_screen.gd" id="17_titlescr"]
+
+[node name="TitleScreen" type="Node2D"]
+texture_filter = 1
+script = ExtResource("17_titlescr")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+offset_right = 427.0
+offset_bottom = 240.0
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+handle_input_locally = false
+size = Vector2i(427, 240)
+render_target_update_mode = 4
+
+[node name="Background" parent="SubViewportContainer/SubViewport" instance=ExtResource("1_1oiph")]
+wave_width = 1.5
+wave_depth = 0.03
+light_color = Color(0.27451, 0.796078, 0.505882, 1)
+dark_color = Color(0, 0.462745, 0.270588, 1)
+color_presets = Array[ExtResource("2_5p4sa")]([ExtResource("3_tqags"), ExtResource("4_to824"), ExtResource("5_y77df"), ExtResource("6_jqmgk"), ExtResource("7_una1u"), ExtResource("8_rtmth"), ExtResource("9_7avnr"), ExtResource("10_5c0cl")])
+shadow_color = Color(0, 0.223529, 0.141176, 1)
+runtime_preset_category = 2
+shade_contrast = 3.0
+shade_strength = 1.0
+
+[node name="Checkerboard" parent="SubViewportContainer/SubViewport/Background" index="0"]
+position = Vector2(-2, 0)
+
+[node name="Title" type="Node2D" parent="."]
+position = Vector2(0, -24)
+
+[node name="TitlePill" type="Sprite2D" parent="Title"]
+position = Vector2(104, 80)
+texture = ExtResource("11_ytagk")
+centered = false
+
+[node name="TitleVirus" type="Sprite2D" parent="Title"]
+position = Vector2(248, 86)
+texture = ExtResource("12_qo84g")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 44, 25)
+script = ExtResource("13_5p4sa")
+
+[node name="TitleLogo" type="Sprite2D" parent="Title"]
+position = Vector2(128, 86)
+texture = ExtResource("13_nccv4")
+centered = false
+
+[node name="PressA" type="Sprite2D" parent="."]
+position = Vector2(173, 152)
+texture = ExtResource("15_tqags")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 85, 24)
+script = ExtResource("16_to824")
+
+[editable path="SubViewportContainer/SubViewport/Background"]

@@ -61,7 +61,7 @@ func take_hit() -> bool:
 #   rows 2-3 -> 1 hit
 #   rows 4-5 -> 2 hits
 #
-@export_category("Textures")
+@export_group("Textures")
 
 @export var virus_sprite_texture: Texture2D:
 	set(value):

@@ -2,6 +2,7 @@
 class_name StoreController
 extends Node2D
 
+
 signal item_selected(item: Item)
 signal closed
 
@@ -10,7 +11,7 @@ signal closed
 # STORE SETUP
 # ============================================================
 
-@export_category("Store Setup")
+@export_group("Store Setup")
 
 @export var menu_controller_path: NodePath = NodePath("MenuController")
 
@@ -31,12 +32,39 @@ signal closed
 
 @export var coin_label_path: NodePath = NodePath("Coins/Amount")
 
+@export var clipboard_path: NodePath = NodePath("Clipboard")
+
+
+# ============================================================
+# DEBUG / STANDALONE F6 TESTING
+# ============================================================
+
+var debug_enabled := true
+
+var debug_coins := 99
+var debug_next_stage := 1
+
+var debug_owned_slot_x := "__DEFAULT__"
+var debug_owned_slot_y := "__DEFAULT__"
+var debug_owned_slot_b := "__DEFAULT__"
+
+var debug_store_slot_1 := "__DEFAULT__"
+var debug_store_slot_2 := "__DEFAULT__"
+var debug_store_slot_3 := "__DEFAULT__"
+var debug_store_slot_4 := "__DEFAULT__"
+var debug_store_slot_5 := "__DEFAULT__"
+var debug_store_slot_6 := "__DEFAULT__"
+
+var _debug_item_enum_signature := ""
+
+const DEBUG_DEFAULT := "__DEFAULT__"
+
 
 # ============================================================
 # BACKGROUND
 # ============================================================
 
-@export_category("Background")
+@export_group("Background")
 
 @export var background_path: NodePath = NodePath(
 	"SubViewportContainer/SubViewport/Background"
@@ -47,7 +75,7 @@ signal closed
 # COIN ICON
 # ============================================================
 
-@export_category("Coin Icon")
+@export_group("Coin Icon")
 
 @export var coin_texture: Texture2D:
 	set(value):
@@ -70,7 +98,7 @@ var coin_animation_fps := 8.0:
 # ITEM ICON
 # ============================================================
 
-@export_category("Item Icon")
+@export_group("Item Icon")
 
 @export var item_icon_position := Vector2(6, 9):
 	set(value):
@@ -82,7 +110,7 @@ var coin_animation_fps := 8.0:
 # SLOT LABEL OVERRIDES
 # ============================================================
 
-@export_category("Slot Labels")
+@export_group("Slot Labels")
 
 @export var slot_labels: Array[String] = [
 	"",
@@ -98,7 +126,7 @@ var coin_animation_fps := 8.0:
 # ITEM LABEL
 # ============================================================
 
-@export_category("Item Label")
+@export_group("Item Label")
 
 @export var label_font: Font:
 	set(value):
@@ -136,7 +164,7 @@ var label_font_size := 6:
 # RARITY
 # ============================================================
 
-@export_category("Rarity")
+@export_group("Rarity")
 
 @export var rarity_font: Font:
 	set(value):
@@ -174,7 +202,7 @@ var rarity_font_size := 5:
 # PRICE
 # ============================================================
 
-@export_category("Price")
+@export_group("Price")
 
 @export var price_font: Font:
 	set(value):
@@ -236,6 +264,430 @@ var last_selected_slot := -1
 var highlighted_name_label: Label
 var highlighted_rarity_label: Label
 
+var _standalone_debug_mode := false
+
+# Tracks the exact visual nodes created for each store slot.
+var _store_slot_visual_nodes: Array = []
+
+# Tracks the exact visual node created for each owned-item slot.
+var _owned_slot_visual_nodes: Array = []
+
+# Temporary icon shown while choosing where to place
+# a purchased item.
+var _purchase_preview_icon: Sprite2D = null
+var _purchase_preview_slot := -1
+
+
+# ============================================================
+# CUSTOM INSPECTOR
+# ============================================================
+
+func _get_property_list() -> Array[Dictionary]:
+
+	var properties: Array[Dictionary] = []
+
+	# --------------------------------------------------------
+	# CATEGORY
+	# --------------------------------------------------------
+
+	properties.append({
+		"name": "Debug / F6 Testing",
+		"type": TYPE_NIL,
+		"usage": PROPERTY_USAGE_CATEGORY
+	})
+
+
+	# --------------------------------------------------------
+	# DEBUG ENABLED
+	# --------------------------------------------------------
+
+	properties.append({
+		"name": "debug_enabled",
+		"type": TYPE_BOOL,
+		"usage": PROPERTY_USAGE_DEFAULT
+	})
+
+
+	# --------------------------------------------------------
+	# DEBUG VALUES
+	# --------------------------------------------------------
+
+	var debug_value_usage := PROPERTY_USAGE_DEFAULT
+
+	if not debug_enabled:
+		debug_value_usage |= PROPERTY_USAGE_READ_ONLY
+
+
+	properties.append({
+		"name": "debug_coins",
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "0,9999,1",
+		"usage": debug_value_usage
+	})
+
+
+	# --------------------------------------------------------
+	# ITEM ENUM
+	# --------------------------------------------------------
+
+	var item_enum_hint := _get_debug_item_enum_hint()
+
+
+	# --------------------------------------------------------
+	# OWNED ITEMS
+	# --------------------------------------------------------
+
+	properties.append({
+		"name": "debug_owned_slot_x",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_owned_slot_y",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_owned_slot_b",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+
+	# --------------------------------------------------------
+	# STORE ITEMS
+	# --------------------------------------------------------
+
+	properties.append({
+		"name": "debug_store_slot_1",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_store_slot_2",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_store_slot_3",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_store_slot_4",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_store_slot_5",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+	properties.append({
+		"name": "debug_store_slot_6",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_ENUM,
+		"hint_string": item_enum_hint,
+		"usage": debug_value_usage
+	})
+
+
+	# --------------------------------------------------------
+	# NEXT STAGE
+	# --------------------------------------------------------
+
+	properties.append({
+		"name": "debug_next_stage",
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "1,999,1",
+		"usage": debug_value_usage
+	})
+
+
+	return properties
+
+
+func _get(property: StringName) -> Variant:
+
+	match property:
+
+		&"debug_enabled":
+			return debug_enabled
+
+		&"debug_coins":
+			return debug_coins
+
+		&"debug_owned_slot_x":
+			return debug_owned_slot_x
+
+		&"debug_owned_slot_y":
+			return debug_owned_slot_y
+
+		&"debug_owned_slot_b":
+			return debug_owned_slot_b
+
+		&"debug_store_slot_1":
+			return debug_store_slot_1
+
+		&"debug_store_slot_2":
+			return debug_store_slot_2
+
+		&"debug_store_slot_3":
+			return debug_store_slot_3
+
+		&"debug_store_slot_4":
+			return debug_store_slot_4
+
+		&"debug_store_slot_5":
+			return debug_store_slot_5
+
+		&"debug_store_slot_6":
+			return debug_store_slot_6
+
+		&"debug_next_stage":
+			return debug_next_stage
+
+	return null
+
+
+func _set(property: StringName, value: Variant) -> bool:
+
+	match property:
+
+		&"debug_enabled":
+			debug_enabled = bool(value)
+
+			notify_property_list_changed()
+
+			return true
+
+		&"debug_coins":
+			debug_coins = int(value)
+			return true
+
+		&"debug_owned_slot_x":
+			debug_owned_slot_x = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_owned_slot_y":
+			debug_owned_slot_y = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_owned_slot_b":
+			debug_owned_slot_b = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_store_slot_1":
+			debug_store_slot_1 = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_store_slot_2":
+			debug_store_slot_2 = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_store_slot_3":
+			debug_store_slot_3 = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_store_slot_4":
+			debug_store_slot_4 = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_store_slot_5":
+			debug_store_slot_5 = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_store_slot_6":
+			debug_store_slot_6 = _debug_dropdown_value_to_id(
+				str(value)
+			)
+			return true
+
+		&"debug_next_stage":
+			debug_next_stage = int(value)
+			return true
+
+	return false
+
+
+func _get_debug_item_enum_hint() -> String:
+
+	var options: Array[String] = [
+		"Default",
+		"None"
+	]
+
+	var catalog: Array[Item] = StoreCatalog.create_catalog()
+
+	var used_names: Dictionary = {}
+
+	for item in catalog:
+
+		if item == null:
+			continue
+
+		var id: String = str(item.id)
+
+		if id.is_empty():
+			continue
+
+		var display_name: String = str(item.display_name)
+
+		if display_name.is_empty():
+			display_name = id
+
+		# If two items have the same display name, include the
+		# ID so they can still be distinguished in the inspector.
+		var option_name := display_name
+
+		if used_names.has(option_name):
+
+			option_name = "%s [%s]" % [
+				display_name,
+				id
+			]
+
+		used_names[option_name] = true
+
+		options.append(option_name)
+
+	return ",".join(options)
+
+
+func _debug_dropdown_value_to_id(
+	value: String
+) -> String:
+
+	value = value.strip_edges()
+
+	# --------------------------------------------------------
+	# DEFAULT
+	#
+	# Special internal value. This means:
+	# "Do not interfere with this slot."
+	# --------------------------------------------------------
+
+	if value == "Default":
+		return DEBUG_DEFAULT
+
+	# --------------------------------------------------------
+	# NONE
+	#
+	# Empty string is the internal representation for an
+	# explicitly empty debug slot.
+	# --------------------------------------------------------
+
+	if value.is_empty() or value == "None":
+		return ""
+
+	var catalog: Array[Item] = StoreCatalog.create_catalog()
+
+	for item in catalog:
+
+		if item == null:
+			continue
+
+		var id := str(item.id)
+		var display_name := str(item.display_name)
+
+		# Normal display name match.
+		if value == display_name:
+			return id
+
+		# Handles duplicate-name entries such as:
+		# "PONG PILL [pong]"
+		if value == "%s [%s]" % [
+			display_name,
+			id
+		]:
+
+			return id
+
+		# Also accept the ID itself.
+		if value == id:
+			return id
+
+	return ""
+
+
+func _get_debug_item_enum_signature() -> String:
+
+	var catalog: Array[Item] = StoreCatalog.create_catalog()
+
+	var parts: Array[String] = []
+
+	for item in catalog:
+
+		if item == null:
+			continue
+
+		parts.append(
+			"%s|%s" % [
+				str(item.id),
+				str(item.display_name)
+			]
+		)
+
+	parts.sort()
+
+	return ",".join(parts)
+
+
+func _refresh_debug_item_dropdowns() -> void:
+
+	if not Engine.is_editor_hint():
+		return
+
+	var signature := _get_debug_item_enum_signature()
+
+	if signature == _debug_item_enum_signature:
+		return
+
+	_debug_item_enum_signature = signature
+
+	notify_property_list_changed()
+
 
 # ============================================================
 # EDITOR
@@ -244,7 +696,16 @@ var highlighted_rarity_label: Label
 func _enter_tree() -> void:
 
 	if Engine.is_editor_hint():
-		call_deferred("_ensure_editor_preview")
+
+		_debug_item_enum_signature = ""
+
+		call_deferred(
+			"_ensure_editor_preview"
+		)
+
+		call_deferred(
+			"_refresh_debug_item_dropdowns"
+		)
 
 
 func _exit_tree() -> void:
@@ -256,6 +717,8 @@ func _process(_delta: float) -> void:
 
 	if not Engine.is_editor_hint():
 		return
+
+	_refresh_debug_item_dropdowns()
 
 	if _editor_preview_update_queued:
 
@@ -299,11 +762,6 @@ func _create_editor_preview() -> void:
 
 	_editor_preview_created = true
 
-
-	# --------------------------------------------------------
-	# FIXED ITEM LABEL
-	# --------------------------------------------------------
-
 	var name_label := Label.new()
 
 	name_label.name = EDITOR_PREFIX + "Label"
@@ -311,22 +769,12 @@ func _create_editor_preview() -> void:
 
 	add_child(name_label)
 
-
-	# --------------------------------------------------------
-	# FIXED RARITY
-	# --------------------------------------------------------
-
 	var rarity_label := Label.new()
 
 	rarity_label.name = EDITOR_PREFIX + "Rarity"
 	rarity_label.text = EDITOR_RARITY_TEXT
 
 	add_child(rarity_label)
-
-
-	# --------------------------------------------------------
-	# SLOT PREVIEWS
-	# --------------------------------------------------------
 
 	for i in item_slot_paths.size():
 
@@ -350,10 +798,6 @@ func _create_editor_slot_preview(
 	slot_index: int
 ) -> void:
 
-	# --------------------------------------------------------
-	# COIN
-	# --------------------------------------------------------
-
 	if coin_texture:
 
 		var coin := _create_coin_animation()
@@ -369,11 +813,6 @@ func _create_editor_slot_preview(
 		)
 
 		slot.add_child(coin)
-
-
-	# --------------------------------------------------------
-	# PRICE
-	# --------------------------------------------------------
 
 	var price_label := Label.new()
 
@@ -402,11 +841,6 @@ func _update_editor_preview() -> void:
 
 		return
 
-
-	# --------------------------------------------------------
-	# FIXED ITEM LABEL
-	# --------------------------------------------------------
-
 	var name_label := get_node_or_null(
 		EDITOR_PREFIX + "Label"
 	) as Label
@@ -426,11 +860,6 @@ func _update_editor_preview() -> void:
 		)
 
 		name_label.visible = true
-
-
-	# --------------------------------------------------------
-	# FIXED RARITY
-	# --------------------------------------------------------
 
 	var rarity_label := get_node_or_null(
 		EDITOR_PREFIX + "Rarity"
@@ -452,11 +881,6 @@ func _update_editor_preview() -> void:
 
 		rarity_label.visible = true
 
-
-	# --------------------------------------------------------
-	# SLOT PREVIEWS
-	# --------------------------------------------------------
-
 	for i in item_slot_paths.size():
 
 		var slot := get_node_or_null(
@@ -465,7 +889,6 @@ func _update_editor_preview() -> void:
 
 		if slot == null:
 			continue
-
 
 		var coin := slot.get_node_or_null(
 			EDITOR_PREFIX + "Coin" + str(i)
@@ -485,8 +908,8 @@ func _update_editor_preview() -> void:
 
 				coin.animation = "default"
 				coin.speed_scale = 1.0
-				coin.play()
 
+				coin.play()
 
 		var price_label := slot.get_node_or_null(
 			EDITOR_PREFIX + "Price" + str(i)
@@ -508,7 +931,7 @@ func _update_editor_preview() -> void:
 
 
 # ============================================================
-# SHARED LABEL SETTINGS
+# LABEL SETTINGS
 # ============================================================
 
 func _apply_label_settings(
@@ -522,6 +945,7 @@ func _apply_label_settings(
 ) -> void:
 
 	label.position = _pixel_vector(position)
+
 	label.size = _pixel_vector(size)
 
 	label.horizontal_alignment = alignment
@@ -543,19 +967,8 @@ func _apply_label_settings(
 
 
 # ============================================================
-# SETUP
+# READY
 # ============================================================
-
-func setup(game_board: DrRogueoBoard) -> void:
-
-	if Engine.is_editor_hint():
-		return
-
-	board = game_board
-
-	_update_coin_display()
-	_update_owned_visuals()
-
 
 func _ready() -> void:
 
@@ -567,11 +980,9 @@ func _ready() -> void:
 
 		return
 
-
 	menu = get_node_or_null(
 		menu_controller_path
 	) as StoreMenuController
-
 
 	if menu:
 
@@ -581,17 +992,247 @@ func _ready() -> void:
 			_on_menu_selection_changed
 		)
 
+		menu.continue_pressed.connect(
+			_on_continue_pressed
+		)
 
 	randomize()
 
-
 	_create_highlighted_info_labels()
+
+	# --------------------------------------------------------
+	# Always create the normal store stock first.
+	#
+	# Debug "Default" means leave this stock alone.
+	# --------------------------------------------------------
 
 	_roll_stock()
 
+	# --------------------------------------------------------
+	# Standalone F6 initialization is deferred so the scene
+	# has finished entering the tree first.
+	# --------------------------------------------------------
+
+	call_deferred(
+		"_initialize_standalone_debug"
+	)
+
 	_update_coin_display()
+
 	_update_owned_visuals()
 
+	if menu:
+
+		_on_menu_selection_changed(
+			menu.current
+		)
+
+	call_deferred(
+		"_apply_store_background"
+	)
+
+
+# ============================================================
+# STANDALONE DEBUG INITIALIZATION
+# ============================================================
+
+func _initialize_standalone_debug() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	if board != null:
+		return
+
+	# --------------------------------------------------------
+	# Debug disabled:
+	#
+	# F6 behaves exactly like a normal store.
+	# --------------------------------------------------------
+
+	if not debug_enabled:
+
+		_standalone_debug_mode = false
+
+		return
+
+	_standalone_debug_mode = true
+
+	# --------------------------------------------------------
+	# COINS
+	# --------------------------------------------------------
+
+	_set_coins(
+		debug_coins
+	)
+
+	# --------------------------------------------------------
+	# INVENTORY
+	#
+	# DO NOT RESET INVENTORY.
+	#
+	# "Default" means debug does nothing to that slot.
+	# We only modify slots that have an explicit debug value.
+	# --------------------------------------------------------
+
+	var owned_debug_values: Array[String] = [
+		debug_owned_slot_x,
+		debug_owned_slot_y,
+		debug_owned_slot_b
+	]
+
+	for i in min(
+		owned_debug_values.size(),
+		Inventory.MAX_ITEMS
+	):
+
+		var debug_value := owned_debug_values[i].strip_edges()
+
+		# ----------------------------------------------------
+		# DEFAULT
+		#
+		# Do absolutely nothing.
+		#
+		# The existing inventory item remains untouched.
+		# ----------------------------------------------------
+
+		if debug_value == DEBUG_DEFAULT:
+			continue
+
+		# ----------------------------------------------------
+		# NONE
+		#
+		# Explicitly empty this slot.
+		# ----------------------------------------------------
+
+		if debug_value.is_empty():
+
+			Inventory.remove_item_from_slot(
+				i
+			)
+
+			continue
+
+		# ----------------------------------------------------
+		# EXPLICIT ITEM
+		#
+		# Replace this slot with the requested item.
+		# ----------------------------------------------------
+
+		var item := _fresh_item(
+			debug_value
+		)
+
+		if item == null:
+
+			push_warning(
+				"StoreController Debug: Could not find "
+				+ "owned item ID: "
+				+ debug_value
+			)
+
+			continue
+
+		# Remove whatever is currently in this slot first.
+		Inventory.remove_item_from_slot(
+			i
+		)
+
+		Inventory.add_item_to_slot(
+			item,
+			i
+		)
+
+	# --------------------------------------------------------
+	# STORE STOCK
+	#
+	# _roll_stock() already created the normal random stock.
+	#
+	# "Default" means leave the existing slot untouched.
+	# Only explicit None/item values override the rolled stock.
+	# --------------------------------------------------------
+
+	var debug_store_values: Array[String] = [
+		debug_store_slot_1,
+		debug_store_slot_2,
+		debug_store_slot_3,
+		debug_store_slot_4,
+		debug_store_slot_5,
+		debug_store_slot_6
+	]
+
+	for i in debug_store_values.size():
+
+		var debug_value := debug_store_values[i].strip_edges()
+
+		# ----------------------------------------------------
+		# DEFAULT
+		#
+		# Do absolutely nothing.
+		#
+		# The normally rolled store item remains untouched.
+		# ----------------------------------------------------
+
+		if debug_value == DEBUG_DEFAULT:
+			continue
+
+		# ----------------------------------------------------
+		# NONE
+		#
+		# Explicitly empty this store slot.
+		# ----------------------------------------------------
+
+		if debug_value.is_empty():
+
+			if i < store_items.size():
+
+				store_items[i] = null
+
+			else:
+
+				while store_items.size() <= i:
+
+					store_items.append(null)
+
+			continue
+
+		# ----------------------------------------------------
+		# EXPLICIT ITEM
+		#
+		# Replace this store slot with the requested item.
+		# ----------------------------------------------------
+
+		var item := _fresh_item(
+			debug_value
+		)
+
+		if item == null:
+
+			push_warning(
+				"StoreController Debug: Could not find "
+				+ "store item ID: "
+				+ debug_value
+			)
+
+			continue
+
+		if i < store_items.size():
+
+			store_items[i] = item
+
+		else:
+
+			while store_items.size() < i:
+
+				store_items.append(null)
+
+			store_items.append(item)
+
+	_update_slot_visuals()
+
+	_update_coin_display()
+
+	_update_owned_visuals()
 
 	if menu:
 
@@ -600,17 +1241,8 @@ func _ready() -> void:
 		)
 
 
-	# --------------------------------------------------------
-	# STORE BACKGROUND
-	# --------------------------------------------------------
-
-	call_deferred(
-		"_apply_store_background"
-	)
-
-
 # ============================================================
-# STORE BACKGROUND
+# BACKGROUND
 # ============================================================
 
 func _apply_store_background() -> void:
@@ -618,11 +1250,9 @@ func _apply_store_background() -> void:
 	if Engine.is_editor_hint():
 		return
 
-
 	var background := get_node_or_null(
 		background_path
 	) as Background
-
 
 	if background == null:
 
@@ -633,7 +1263,6 @@ func _apply_store_background() -> void:
 
 		return
 
-
 	if not background.use_color_presets:
 
 		push_warning(
@@ -643,23 +1272,86 @@ func _apply_store_background() -> void:
 
 		return
 
-
-	# --------------------------------------------------------
-	# Tell the Background which preset pool it belongs to.
-	# --------------------------------------------------------
-
 	background.runtime_preset_category = (
 		BackgroundPreset.Category.STORE
 	)
 
-
-	# --------------------------------------------------------
-	# Select ONLY from the STORE preset pool.
-	# --------------------------------------------------------
-
 	background.apply_random_preset(
 		BackgroundPreset.Category.STORE
 	)
+
+
+# ============================================================
+# SETUP
+# ============================================================
+
+func setup(game_board: DrRogueoBoard) -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	board = game_board
+
+	# Once the real board exists, this is normal gameplay,
+	# not standalone debug mode.
+	_standalone_debug_mode = false
+
+	_update_coin_display()
+
+	_update_owned_visuals()
+
+
+# ============================================================
+# COIN ACCESS
+# ============================================================
+
+func get_coins() -> int:
+
+	if board != null:
+		return board.coins
+
+	# Debug coins are only valid in standalone debug mode.
+	if _standalone_debug_mode and debug_enabled:
+		return debug_coins
+
+	# No real board and no active debug mode means there is no
+	# real-game coin value to read.
+	return 0
+
+
+func set_coins(value: int) -> void:
+
+	if board != null:
+
+		board.coins = value
+
+		return
+
+	# Do not allow the debug value to act as a real coin store
+	# when Debug Enabled is disabled.
+	if _standalone_debug_mode and debug_enabled:
+
+		debug_coins = value
+
+
+func add_coins(amount: int) -> void:
+
+	set_coins(
+		get_coins() + amount
+	)
+
+	_update_coin_display()
+
+
+func _set_coins(value: int) -> void:
+
+	if board != null:
+
+		board.coins = value
+
+	elif _standalone_debug_mode and debug_enabled:
+
+		debug_coins = value
 
 
 # ============================================================
@@ -673,28 +1365,33 @@ func _roll_stock() -> void:
 
 	store_items.clear()
 
-	var catalog := StoreCatalog.create_catalog()
+	var catalog: Array[Item] = (
+		StoreCatalog.create_catalog()
+	)
 
 	if catalog.is_empty():
 		return
 
-
 	for _i in item_slot_paths.size():
 
-		var item := _random_item(catalog)
+		var item := _random_item(
+			catalog
+		)
 
 		if item:
 
-			# Price and rarity come directly from the Item.
-			# Store slots do NOT modify either value.
-
 			store_items.append(item)
 
+		else:
+
+			store_items.append(null)
 
 	_update_slot_visuals()
 
 
-func _random_item(catalog: Array[Item]) -> Item:
+func _random_item(
+	catalog: Array[Item]
+) -> Item:
 
 	var valid_items: Array[Item] = []
 
@@ -704,16 +1401,13 @@ func _random_item(catalog: Array[Item]) -> Item:
 
 			valid_items.append(item)
 
-
 	if valid_items.is_empty():
 		return null
 
-
-	var index := randi_range(
+	var index: int = randi_range(
 		0,
 		valid_items.size() - 1
 	)
-
 
 	return _fresh_item(
 		valid_items[index].id
@@ -722,12 +1416,40 @@ func _random_item(catalog: Array[Item]) -> Item:
 
 func _fresh_item(id: String) -> Item:
 
-	for item in StoreCatalog.create_catalog():
+	var clean_id := id.strip_edges()
 
-		if item.id == id:
+	if clean_id.is_empty():
+		return null
+
+	var catalog: Array[Item] = (
+		StoreCatalog.create_catalog()
+	)
+
+	# --------------------------------------------------------
+	# Primary lookup: item ID.
+	# --------------------------------------------------------
+
+	for item in catalog:
+
+		if item == null:
+			continue
+
+		if str(item.id) == clean_id:
 
 			return item
 
+	# --------------------------------------------------------
+	# Fallback lookup: display name.
+	# --------------------------------------------------------
+
+	for item in catalog:
+
+		if item == null:
+			continue
+
+		if str(item.display_name) == clean_id:
+
+			return item
 
 	return null
 
@@ -741,6 +1463,10 @@ func _update_slot_visuals() -> void:
 	if Engine.is_editor_hint():
 		return
 
+	# Keep the tracking array the same length as the slot list.
+	while _store_slot_visual_nodes.size() < item_slot_paths.size():
+
+		_store_slot_visual_nodes.append([])
 
 	for i in item_slot_paths.size():
 
@@ -751,30 +1477,36 @@ func _update_slot_visuals() -> void:
 		if slot == null:
 			continue
 
+		# ----------------------------------------------------
+		# FREE EXACTLY WHAT WE CREATED LAST TIME
+		# ----------------------------------------------------
 
-		for child in slot.get_children():
+		var old_nodes: Array = (
+			_store_slot_visual_nodes[i]
+		)
 
-			if child.name.begins_with(
-				"StoreVisual"
-			):
+		for node in old_nodes:
 
-				child.queue_free()
+			if is_instance_valid(node):
 
+				node.free()
+
+		_store_slot_visual_nodes[i] = []
 
 		if i >= store_items.size():
 			continue
 
+		var item := store_items[i]
 
-		if store_items[i] == null:
+		if item == null:
 			continue
-
 
 		_add_item_visuals(
 			slot,
-			store_items[i],
-			"StoreVisual"
+			item,
+			"StoreVisual",
+			i
 		)
-
 
 	_update_highlighted_info()
 
@@ -782,19 +1514,20 @@ func _update_slot_visuals() -> void:
 func _add_item_visuals(
 	slot: Node2D,
 	item: Item,
-	prefix: String
+	prefix: String,
+	slot_index: int
 ) -> void:
 
-	# --------------------------------------------------------
-	# ITEM ICON
-	# --------------------------------------------------------
+	var created_nodes: Array = []
 
 	if item.icon:
 
 		var icon := Sprite2D.new()
 
 		icon.name = prefix + "Icon"
+
 		icon.texture = item.icon
+
 		icon.centered = false
 
 		icon.position = _pixel_vector(
@@ -803,10 +1536,7 @@ func _add_item_visuals(
 
 		slot.add_child(icon)
 
-
-	# --------------------------------------------------------
-	# COIN
-	# --------------------------------------------------------
+		created_nodes.append(icon)
 
 	if coin_texture:
 
@@ -820,22 +1550,11 @@ func _add_item_visuals(
 
 		slot.add_child(coin)
 
-
-	# --------------------------------------------------------
-	# PRICE
-	# --------------------------------------------------------
+		created_nodes.append(coin)
 
 	var price_label := Label.new()
 
 	price_label.name = prefix + "Price"
-
-	# Always two digits.
-	#
-	# Examples:
-	#   5  -> 05
-	#   8  -> 08
-	#   15 -> 15
-	#   99 -> 99
 
 	price_label.text = "%02d" % item.cost
 
@@ -851,16 +1570,18 @@ func _add_item_visuals(
 
 	slot.add_child(price_label)
 
+	created_nodes.append(price_label)
+
+	_store_slot_visual_nodes[slot_index] = (
+		created_nodes
+	)
+
 
 # ============================================================
-# RUNTIME FIXED INFO
+# HIGHLIGHTED INFO
 # ============================================================
 
 func _create_highlighted_info_labels() -> void:
-
-	# --------------------------------------------------------
-	# ITEM LABEL
-	# --------------------------------------------------------
 
 	highlighted_name_label = Label.new()
 
@@ -880,12 +1601,9 @@ func _create_highlighted_info_labels() -> void:
 
 	highlighted_name_label.visible = false
 
-	add_child(highlighted_name_label)
-
-
-	# --------------------------------------------------------
-	# RARITY
-	# --------------------------------------------------------
+	add_child(
+		highlighted_name_label
+	)
 
 	highlighted_rarity_label = Label.new()
 
@@ -905,45 +1623,53 @@ func _create_highlighted_info_labels() -> void:
 
 	highlighted_rarity_label.visible = false
 
-	add_child(highlighted_rarity_label)
+	add_child(
+		highlighted_rarity_label
+	)
 
-
-# ============================================================
-# MENU HIGHLIGHT CHANGE
-# ============================================================
 
 func _on_menu_selection_changed(
 	selection: MenuSelectable
 ) -> void:
 
-	# --------------------------------------------------------
-	# If we're highlighting a store item, update the
-	# information panel to that item.
-	#
-	# If we move away from a store item, DO NOT hide it.
-	#
-	# The information therefore remains showing the current
-	# OR last highlighted store item.
-	# --------------------------------------------------------
-
 	if selection == null:
 		return
 
+	# --------------------------------------------------------
+	# PURCHASE PLACEMENT
+	#
+	# While choosing an inventory slot for a purchased item,
+	# show the purchased item's icon on the highlighted slot.
+	# --------------------------------------------------------
 
-	var index := _get_store_slot_index(
-		selection
-	)
+	if (
+		menu != null
+		and menu.transaction_mode
+		== StoreMenuController.TransactionMode.BUY_PLACEMENT
+	):
 
+		var owned_index := menu.owned_item_slots.find(
+			selection
+		)
 
-	if index >= 0:
+		if owned_index >= 0:
 
-		_show_highlighted_info(index)
+			show_purchase_preview(
+				menu.purchased_item,
+				owned_index
+			)
 
 		return
 
+	var index: int = _get_store_slot_index(
+		selection
+	)
 
-	# Non-store selection:
-	# deliberately leave the current information visible.
+	if index >= 0:
+
+		_show_highlighted_info(
+			index
+		)
 
 
 func _get_store_slot_index(
@@ -968,12 +1694,10 @@ func _show_highlighted_info(
 	if index >= store_items.size():
 		return
 
-
 	var item := store_items[index]
 
 	if item == null:
 		return
-
 
 	if highlighted_name_label == null:
 		return
@@ -981,9 +1705,9 @@ func _show_highlighted_info(
 	if highlighted_rarity_label == null:
 		return
 
-
-	var display_name := item.display_name
-
+	var display_name: String = (
+		item.display_name
+	)
 
 	if index < slot_labels.size():
 
@@ -991,14 +1715,16 @@ func _show_highlighted_info(
 
 			display_name = slot_labels[index]
 
-
-	highlighted_name_label.text = display_name
+	highlighted_name_label.text = (
+		display_name
+	)
 
 	highlighted_rarity_label.text = (
 		item.get_rarity_name()
 	)
 
 	highlighted_name_label.visible = true
+
 	highlighted_rarity_label.visible = true
 
 
@@ -1027,6 +1753,351 @@ func _update_highlighted_info() -> void:
 
 
 # ============================================================
+# PURCHASE PLACEMENT PREVIEW
+# ============================================================
+
+func show_purchase_preview(
+	item: Item,
+	owned_slot: int
+) -> void:
+
+	if item == null:
+		return
+
+	if owned_slot < 0:
+		return
+
+	if owned_slot >= owned_item_paths.size():
+		return
+
+	var slot := get_node_or_null(
+		owned_item_paths[owned_slot]
+	) as Node2D
+
+	if slot == null:
+		return
+
+	# --------------------------------------------------------
+	# Create the temporary preview icon if necessary.
+	# --------------------------------------------------------
+
+	if _purchase_preview_icon == null:
+
+		_purchase_preview_icon = Sprite2D.new()
+
+		_purchase_preview_icon.name = (
+			"PurchasePreviewIcon"
+		)
+
+		_purchase_preview_icon.centered = false
+
+		slot.add_child(
+			_purchase_preview_icon
+		)
+
+	# --------------------------------------------------------
+	# If the highlight moved to another slot, move the preview
+	# icon along with it.
+	# --------------------------------------------------------
+
+	elif _purchase_preview_icon.get_parent() != slot:
+
+		_purchase_preview_icon.reparent(
+			slot
+		)
+
+	_purchase_preview_icon.texture = item.icon
+
+	_purchase_preview_icon.position = Vector2(7, 9)
+
+	_purchase_preview_slot = owned_slot
+
+
+func hide_purchase_preview() -> void:
+
+	if _purchase_preview_icon:
+
+		_purchase_preview_icon.free()
+
+		_purchase_preview_icon = null
+
+		_purchase_preview_slot = -1
+
+
+# ============================================================
+# COIN DISPLAY
+# ============================================================
+
+func _update_coin_display() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	var label := get_node_or_null(
+		coin_label_path
+	) as Label
+
+	if label:
+
+		label.text = str(
+			get_coins()
+		)
+
+	_update_clipboard_display()
+
+
+# ============================================================
+# CLIPBOARD
+# ============================================================
+
+func _update_clipboard_display() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	var clipboard := get_node_or_null(
+		clipboard_path
+	) as Clipboard
+
+	if clipboard == null:
+		return
+
+	clipboard.update_store_stats(
+		_get_next_stage_number(),
+		get_coins()
+	)
+
+
+func _get_next_stage_number() -> int:
+
+	# board.level is already advanced to the UPCOMING level by
+	# the time the store is opened.
+	if board != null:
+
+		return board.get_stage()
+
+	# Debug next-stage value is only usable in standalone debug.
+	if _standalone_debug_mode and debug_enabled:
+
+		return debug_next_stage
+
+	# Without a board or active debug mode, don't use the debug
+	# value.
+	return 1
+
+
+# ============================================================
+# OWNED ITEMS
+# ============================================================
+
+func _update_owned_visuals() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	while _owned_slot_visual_nodes.size() < owned_item_paths.size():
+
+		_owned_slot_visual_nodes.append(null)
+
+	for i in owned_item_paths.size():
+
+		var slot := get_node_or_null(
+			owned_item_paths[i]
+		) as Node2D
+
+		if slot == null:
+			continue
+
+		# ----------------------------------------------------
+		# REMOVE ANY GENERATED OWNED/PURCHASE ICONS
+		#
+		# The inventory is the source of truth. We completely
+		# rebuild the visual for this slot every time.
+		# ----------------------------------------------------
+
+		for child in slot.get_children():
+
+			if (
+				child.name == "OwnedVisualIcon"
+				or child.name == "PurchasePreviewIcon"
+			):
+
+				child.free()
+
+		_owned_slot_visual_nodes[i] = null
+
+		# ----------------------------------------------------
+		# EMPTY SLOT = NOTHING TO DRAW
+		# ----------------------------------------------------
+
+		if i >= Inventory.items.size():
+			continue
+
+		var item := Inventory.items[i]
+
+		if item == null:
+			continue
+
+		if item.icon == null:
+			continue
+
+		# ----------------------------------------------------
+		# DRAW THE ACTUAL OWNED ITEM
+		# ----------------------------------------------------
+
+		var icon := Sprite2D.new()
+
+		icon.name = "OwnedVisualIcon"
+
+		icon.texture = item.icon
+
+		icon.centered = false
+
+		icon.position = Vector2(7, 9)
+
+		slot.add_child(icon)
+
+		_owned_slot_visual_nodes[i] = icon
+
+
+# ============================================================
+# SELECTION
+# ============================================================
+
+func select_item_slot(index: int) -> void:
+
+	if index < 0:
+		return
+
+	if index >= store_items.size():
+		return
+
+	if store_items[index] == null:
+		return
+
+	selected_slot = index
+
+	last_selected_slot = index
+
+	item_selected.emit(
+		store_items[index]
+	)
+
+
+# ============================================================
+# PURCHASE
+# ============================================================
+
+func buy_selected_item() -> Item:
+
+	if selected_slot < 0:
+		return null
+
+	if selected_slot >= store_items.size():
+		return null
+
+	var item := store_items[selected_slot]
+
+	if item == null:
+		return null
+
+	if get_coins() < item.cost:
+		return null
+
+	if Inventory.items.find(null) == -1:
+		return null
+
+	# IMPORTANT:
+	# Do NOT deduct coins here.
+	#
+	# This function is now only used as a validation/access
+	# function. The actual transaction happens when an owned
+	# slot is confirmed.
+	return item
+
+
+func complete_purchase(
+	item: Item,
+	store_slot: int
+) -> void:
+
+	if item == null:
+		return
+
+	if store_slot < 0:
+		return
+
+	if store_slot >= store_items.size():
+		return
+
+	# --------------------------------------------------------
+	# COMPLETE THE PURCHASE
+	# --------------------------------------------------------
+
+	set_coins(
+		get_coins() - item.cost
+	)
+
+	_update_coin_display()
+
+	# --------------------------------------------------------
+	# REMOVE THE TEMPORARY PURCHASE PREVIEW
+	# --------------------------------------------------------
+
+	hide_purchase_preview()
+
+	# --------------------------------------------------------
+	# REMOVE THE EXACT STORE SLOT
+	# --------------------------------------------------------
+
+	store_items[store_slot] = null
+
+	_update_slot_visuals()
+
+	# Inventory was already updated by the menu controller.
+	# Rebuild the owned visuals entirely from Inventory.items.
+	_update_owned_visuals()
+
+
+# ============================================================
+# SELL SUPPORT
+# ============================================================
+
+func sell_item(
+	inventory_slot: int
+) -> bool:
+
+	if inventory_slot < 0:
+		return false
+
+	if inventory_slot >= Inventory.items.size():
+		return false
+
+	var item := Inventory.items[inventory_slot]
+
+	if item == null:
+		return false
+
+	var sell_value: int = item.sell_price
+
+	if not Inventory.remove_item_from_slot(
+		inventory_slot
+	):
+
+		return false
+
+	add_coins(
+		sell_value
+	)
+
+	_update_coin_display()
+
+	_update_owned_visuals()
+
+	return true
+
+
+# ============================================================
 # COIN ANIMATION
 # ============================================================
 
@@ -1040,8 +2111,9 @@ func _build_coin_frames() -> SpriteFrames:
 			"default"
 		)
 
-
-	frames.add_animation("default")
+	frames.add_animation(
+		"default"
+	)
 
 	frames.set_animation_speed(
 		"default",
@@ -1052,7 +2124,6 @@ func _build_coin_frames() -> SpriteFrames:
 		"default",
 		true
 	)
-
 
 	if coin_texture:
 
@@ -1074,7 +2145,6 @@ func _build_coin_frames() -> SpriteFrames:
 				atlas
 			)
 
-
 	return frames
 
 
@@ -1082,7 +2152,10 @@ func _create_coin_animation() -> AnimatedSprite2D:
 
 	var coin := AnimatedSprite2D.new()
 
-	coin.sprite_frames = _build_coin_frames()
+	coin.sprite_frames = (
+		_build_coin_frames()
+	)
+
 	coin.animation = "default"
 
 	coin.play()
@@ -1091,10 +2164,12 @@ func _create_coin_animation() -> AnimatedSprite2D:
 
 
 # ============================================================
-# PIXEL-PERFECT FONT
+# PIXEL PERFECT
 # ============================================================
 
-func _pixel_vector(value: Vector2) -> Vector2:
+func _pixel_vector(
+	value: Vector2
+) -> Vector2:
 
 	return Vector2(
 		floor(value.x),
@@ -1110,9 +2185,7 @@ func _apply_pixel_font(
 	if source_font == null:
 		return
 
-
 	var font := source_font.duplicate()
-
 
 	if font is FontFile:
 
@@ -1128,174 +2201,10 @@ func _apply_pixel_font(
 
 		pixel_font.oversampling = 1.0
 
-
 	label.add_theme_font_override(
 		"font",
 		font
 	)
-
-
-# ============================================================
-# OWNED ITEMS
-# ============================================================
-
-func _update_owned_visuals() -> void:
-
-	if Engine.is_editor_hint():
-		return
-
-
-	for i in owned_item_paths.size():
-
-		var slot := get_node_or_null(
-			owned_item_paths[i]
-		) as Node2D
-
-		if slot == null:
-			continue
-
-
-		for child in slot.get_children():
-
-			if child.name.begins_with(
-				"OwnedVisual"
-			):
-
-				child.queue_free()
-
-
-		if i >= Inventory.items.size():
-			continue
-
-
-		if Inventory.items[i] == null:
-			continue
-
-
-		var item := Inventory.items[i]
-
-
-		if item.icon:
-
-			var icon := Sprite2D.new()
-
-			icon.name = "OwnedVisualIcon"
-			icon.texture = item.icon
-			icon.centered = false
-			icon.position = Vector2.ZERO
-
-			slot.add_child(icon)
-
-
-# ============================================================
-# SELECTION
-# ============================================================
-
-func select_item_slot(index: int) -> void:
-
-	if index < 0:
-		return
-
-	if index >= store_items.size():
-		return
-
-
-	if store_items[index] == null:
-		return
-
-
-	selected_slot = index
-	last_selected_slot = index
-
-	item_selected.emit(
-		store_items[index]
-	)
-
-
-# ============================================================
-# PURCHASE
-# ============================================================
-
-func buy_selected_item() -> Item:
-
-	if selected_slot < 0:
-		return null
-
-	if selected_slot >= store_items.size():
-		return null
-
-
-	var item := store_items[selected_slot]
-
-
-	if item == null:
-		return null
-
-	if board == null:
-		return null
-
-
-	# Price comes directly from the Item.
-	var price := item.cost
-
-
-	if board.coins < price:
-		return null
-
-
-	if Inventory.items.find(null) == -1:
-		return null
-
-
-	board.coins -= price
-
-	_update_coin_display()
-
-	return item
-
-
-func finish_purchase(
-	owned_slot: int
-) -> void:
-
-	if selected_slot < 0:
-		return
-
-	if selected_slot >= store_items.size():
-		return
-
-
-	store_items[selected_slot] = null
-
-	_update_slot_visuals()
-	_update_owned_visuals()
-
-	# If the purchased item was the currently displayed
-	# information, leave the information visible as requested.
-	#
-	# It represents the current/last highlighted item.
-
-
-# ============================================================
-# COINS
-# ============================================================
-
-func _update_coin_display() -> void:
-
-	if Engine.is_editor_hint():
-		return
-
-
-	var label := get_node_or_null(
-		coin_label_path
-	) as Label
-
-
-	if label:
-
-		label.text = str(
-			board.coins if board else 0
-		)
 
 
 # ============================================================

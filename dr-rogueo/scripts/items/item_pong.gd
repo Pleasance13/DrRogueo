@@ -23,7 +23,9 @@ func _init() -> void:
 
 	rarity = Item.Rarity.RARE
 
-	cost = 08
+	cost = 15
+
+	sell_price = 05
 
 	description = (
 		"Summons a paddle at the top of the board that stays " +

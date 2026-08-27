@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://dc1kkw0qxwj0y"]
+[gd_scene load_steps=36 format=3 uid="uid://dc1kkw0qxwj0y"]
 
 [ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_bh2q3"]
 [ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_e0lh1"]
@@ -29,6 +29,7 @@
 [ext_resource type="Texture2D" uid="uid://dxckm6l8y1qmj" path="res://art/ui/HL-store-continue.png" id="25_7swx0"]
 [ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="25_c56s1"]
 [ext_resource type="Script" uid="uid://cvhkwixrqlqv0" path="res://scripts/ui/store_menu_controller.gd" id="25_v17vb"]
+[ext_resource type="Script" uid="uid://cpohjjnsor87x" path="res://scripts/ui/clipboard.gd" id="26_iyybn"]
 [ext_resource type="Texture2D" uid="uid://b0cv8p1n3p1b7" path="res://art/ui/HL-store-bottles.png" id="27_c56s1"]
 [ext_resource type="Texture2D" uid="uid://bvvj6wgv6t7vl" path="res://art/ui/HL-store-items.png" id="28_8lq3c"]
 [ext_resource type="Texture2D" uid="uid://px07y25go7oc" path="res://art/ui/HL-store-traits.png" id="29_iyybn"]
@@ -51,6 +52,18 @@ price_font = ExtResource("25_c56s1")
 price_font_size = 8
 price_position = Vector2(31, 18)
 price_alignment = 1
+debug_enabled = true
+debug_coins = 99
+debug_owned_slot_x = "TETHER PILL"
+debug_owned_slot_y = "Default"
+debug_owned_slot_b = "Default"
+debug_store_slot_1 = "Default"
+debug_store_slot_2 = "Default"
+debug_store_slot_3 = "Default"
+debug_store_slot_4 = "Default"
+debug_store_slot_5 = "Default"
+debug_store_slot_6 = "Default"
+debug_next_stage = 3
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
 offset_right = 427.0
@@ -62,15 +75,17 @@ size = Vector2i(427, 240)
 render_target_update_mode = 4
 
 [node name="Background" parent="SubViewportContainer/SubViewport" instance=ExtResource("1_bh2q3")]
+wave_width = 1.5
+wave_depth = 0.03
+light_color = Color(0.27451, 0.796078, 0.505882, 1)
+dark_color = Color(0, 0.462745, 0.270588, 1)
 color_presets = Array[ExtResource("2_e0lh1")]([ExtResource("3_2bj56"), ExtResource("4_hcjtv"), ExtResource("5_ef4ni"), ExtResource("6_h3bup"), ExtResource("7_2umx5"), ExtResource("8_pw5g0"), ExtResource("9_eu672"), ExtResource("10_tb6l5")])
+shadow_color = Color(0, 0.223529, 0.141176, 1)
+shade_contrast = 3.0
+shade_strength = 1.0
 
 [node name="Checkerboard" parent="SubViewportContainer/SubViewport/Background" index="0"]
 position = Vector2(-2, 0)
-
-[node name="LayoutGuide" type="Sprite2D" parent="."]
-visible = false
-texture = ExtResource("11_tfjff")
-centered = false
 
 [node name="Counter" type="Sprite2D" parent="."]
 texture = ExtResource("12_3x43k")
@@ -144,6 +159,17 @@ offset = Vector2(324, 125)
 texture = ExtResource("20_jba6u")
 centered = false
 offset = Vector2(316, 18)
+script = ExtResource("26_iyybn")
+display_mode = 1
+header_font = ExtResource("25_c56s1")
+header_font_size = 8
+value_font = ExtResource("25_c56s1")
+value_font_size = 8
+value_alignment = 2
+next_stage_header_position = Vector2(326, 58)
+store_coin_header_position = Vector2(326, 82)
+next_stage_value_position = Vector2(326, 66)
+store_coin_value_position = Vector2(326, 90)
 
 [node name="ContinueButton" type="Sprite2D" parent="."]
 position = Vector2(323, 179)
@@ -429,5 +455,11 @@ owned_trait_paths = Array[NodePath]([NodePath("../OwnedTraits/OwnedTrait1"), Nod
 continue_button_path = NodePath("../ContinueButton")
 buy_button_path = NodePath("../BuyButton")
 store_item_paths = Array[NodePath]([NodePath("../Items/Item1"), NodePath("../Items/Item2"), NodePath("../Items/Item3"), NodePath("../Items/Item4"), NodePath("../Items/Item5"), NodePath("../Items/Item6")])
+buy_sell_texture = ExtResource("17_qyicm")
+
+[node name="LayoutGuide" type="Sprite2D" parent="."]
+visible = false
+texture = ExtResource("11_tfjff")
+centered = false
 
 [editable path="SubViewportContainer/SubViewport/Background"]

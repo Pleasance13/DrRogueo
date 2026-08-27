@@ -46,7 +46,7 @@ func take_hit() -> bool:
 	return hp <= 0
 
 
-@export_category("Pill Half")
+@export_group("Pill Half")
 
 @export var pill_color: PillColor = PillColor.RED:
 	set(value):

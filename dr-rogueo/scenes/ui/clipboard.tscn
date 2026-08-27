@@ -1,8 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://desrmcn8loloj"]
+[gd_scene load_steps=4 format=3 uid="uid://desrmcn8loloj"]
 
 [ext_resource type="Texture2D" uid="uid://codaryfupfqei" path="res://art/ui/clipboard.png" id="1_byv16"]
+[ext_resource type="Script" path="res://scripts/ui/clipboard.gd" id="2_clipbd"]
+[ext_resource type="FontFile" uid="uid://dl2gw4blk118s" path="res://fonts/tiny-mono-pixel-font.ttf" id="3_clipbd"]
 
 [node name="Clipboard" type="Node2D"]
+script = ExtResource("2_clipbd")
+value_font = ExtResource("3_clipbd")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_byv16")

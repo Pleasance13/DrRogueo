@@ -24,7 +24,7 @@ enum FallSpeed {
 	HIGH
 }
 
-@export_category("Pill")
+@export_group("Pill")
 
 @export var pill_scene: PackedScene
 
@@ -32,7 +32,7 @@ enum FallSpeed {
 var fall_speed: int = FallSpeed.LOW
 
 
-@export_category("Virus")
+@export_group("Virus")
 
 @export var virus_scene: PackedScene
 
@@ -44,7 +44,7 @@ var level: int = 1
 # BACKGROUND
 # ============================================================
 
-@export_category("Background")
+@export_group("Background")
 
 @export var background: Background
 
@@ -53,7 +53,7 @@ var level: int = 1
 # ITEMS
 # ============================================================
 
-@export_category("Items")
+@export_group("Items")
 
 @export var pong_sprite_texture: Texture2D
 
@@ -64,18 +64,44 @@ var level: int = 1
 # STORE
 # ============================================================
 
-@export_category("Store")
+@export_group("Store")
 
 @export var store_scene: PackedScene
 
-const STORE_INTERVAL := 5
-const COINS_PER_LEVEL := 5
+# How many levels make up one stage. The store opens between
+# every stage, and the background preset only rerolls at the
+# start of a new stage (not every level).
+const LEVELS_PER_STAGE := 5
+
+const COINS_PER_VIRUS := 1
 
 var coins := 0
+
+# Coins earned so far during the CURRENT stage only. Reset to 0
+# each time a new stage starts. Used to apply the OD-gauge coin
+# multiplier when the stage ends (see _apply_stage_coin_multiplier).
+var stage_coins_earned := 0
 
 var store_controller: StoreController = null
 
 var store_waiting := false
+
+
+# ============================================================
+# HUD
+# ============================================================
+
+@export_group("HUD")
+
+@export var od_gauge_path: NodePath = NodePath("../OD-gauge")
+
+@export var score_multiplier_path: NodePath = NodePath("../Score-multiplier")
+
+@export var clipboard_path: NodePath = NodePath("../Clipboard")
+
+var od_gauge: OverdoseGauge
+var score_multiplier: ScoreMultiplier
+var clipboard: Clipboard
 
 
 # ============================================================
@@ -93,10 +119,34 @@ const VANISH_DURATION := 0.30
 # LEVEL TRANSITION
 # ============================================================
 
-const LEVEL_TRANSITION_DURATION := 2.0
+@export_group("Game Over")
+
+@export var game_over_font: Font
+
+@export_range(1, 128, 1)
+var game_over_font_size: int = 16
+
+@export var game_over_font_color: Color = Color.WHITE
+
+var game_over := false
+var game_over_label: Label
+
+# How long to wait on the GAME OVER screen before automatically
+# bouncing back to the title screen (the player can also just
+# press A / ui_accept to skip the wait).
+const GAME_OVER_RETURN_DELAY := 5.0
+
+const TITLE_SCENE_PATH := "res://scenes/ui/title_screen.tscn"
+
+var game_over_timer := 0.0
 
 var transition_layer: CanvasLayer
 var transition_rect: ColorRect
+
+# Shown on the black screen between levels ("STAGE # - LEVEL #"),
+# using the same font options as game_over_label above. Stays up
+# until the player presses A / ui_accept.
+var level_transition_label: Label
 
 var transitioning_level := false
 
@@ -122,32 +172,25 @@ var lock_timer := 0.0
 
 var resolving_board := false
 
-
 # Active Pong Paddle item minigame, or null when none is running.
 var pong_controller: PongController = null
-
 
 # Vector2i -> PillHalf
 var occupied_cells: Dictionary = {}
 
-
 # Vector2i -> Tether
 var tether_cells: Dictionary = {}
-
 
 # Vector2i -> Virus
 var virus_cells: Dictionary = {}
 
-
 # Node2D -> remaining time
 var vanishing_halves: Dictionary = {}
-
 
 var _z_was_pressed := false
 var _x_was_pressed := false
 
 var _soft_dropping := false
-
 
 var rng := RandomNumberGenerator.new()
 
@@ -164,16 +207,27 @@ func _ready() -> void:
 	rng.randomize()
 
 	create_transition_overlay()
+	create_game_over_label()
+	create_level_transition_label()
 
-	# Starting level background.
+	# ========================================================
+	# HUD NODES
+	# ========================================================
+
+	od_gauge = get_node_or_null(od_gauge_path) as OverdoseGauge
+
+	score_multiplier = get_node_or_null(
+		score_multiplier_path
+	) as ScoreMultiplier
+
+	clipboard = get_node_or_null(clipboard_path) as Clipboard
+
+	# Starting level (stage 1) background.
 	apply_new_level_background()
 
 	$Items.set_board(self)
 
 	Inventory.reset()
-
-	# Grant the starting Tether item.
-	grant_tether_item()
 
 	# Create the preview first.
 	create_next_preview()
@@ -193,6 +247,17 @@ func _process(delta: float) -> void:
 
 	if Engine.is_editor_hint():
 		return
+
+	if game_over:
+		_process_game_over(delta)
+		return
+
+	# --------------------------------------------------------
+	# HUD (kept live regardless of what state the board is in,
+	# including during level/stage transitions).
+	# --------------------------------------------------------
+
+	update_hud()
 
 
 	# --------------------------------------------------------
@@ -351,6 +416,269 @@ func set_transition_black(black: bool) -> void:
 	transition_rect.visible = black
 
 
+func trigger_game_over() -> void:
+
+	if game_over:
+		return
+
+
+	game_over = true
+
+	game_over_timer = 0.0
+
+	print(">>> GAME OVER <<<")
+
+
+	if current_pill != null:
+
+		current_pill.queue_free()
+
+		current_pill = null
+
+
+	if next_pill != null:
+
+		next_pill.queue_free()
+
+		next_pill = null
+
+
+	if next_item_preview != null:
+
+		next_item_preview.queue_free()
+
+		next_item_preview = null
+
+
+	set_transition_black(true)
+
+
+	if game_over_label != null:
+
+		game_over_label.visible = true
+
+
+func create_game_over_label() -> void:
+
+	if transition_layer == null:
+		return
+
+
+	game_over_label = Label.new()
+
+	game_over_label.name = "GameOverLabel"
+
+	game_over_label.text = "GAME OVER"
+
+	game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	game_over_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	game_over_label.set_anchors_and_offsets_preset(
+		Control.PRESET_FULL_RECT
+	)
+
+	game_over_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+	# ========================================================
+	# FONT
+	# ========================================================
+
+	if game_over_font != null:
+
+		game_over_label.add_theme_font_override(
+			"font",
+			game_over_font
+		)
+
+
+	game_over_label.add_theme_font_size_override(
+		"font_size",
+		game_over_font_size
+	)
+
+
+	game_over_label.add_theme_color_override(
+		"font_color",
+		game_over_font_color
+	)
+
+
+	game_over_label.visible = false
+
+	transition_layer.add_child(game_over_label)
+
+
+func create_level_transition_label() -> void:
+
+	if transition_layer == null:
+		return
+
+
+	level_transition_label = Label.new()
+
+	level_transition_label.name = "LevelTransitionLabel"
+
+	level_transition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	level_transition_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	level_transition_label.set_anchors_and_offsets_preset(
+		Control.PRESET_FULL_RECT
+	)
+
+	level_transition_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+	# ========================================================
+	# FONT (same options as the GAME OVER label)
+	# ========================================================
+
+	if game_over_font != null:
+
+		level_transition_label.add_theme_font_override(
+			"font",
+			game_over_font
+		)
+
+
+	level_transition_label.add_theme_font_size_override(
+		"font_size",
+		game_over_font_size
+	)
+
+
+	level_transition_label.add_theme_color_override(
+		"font_color",
+		game_over_font_color
+	)
+
+
+	level_transition_label.visible = false
+
+	transition_layer.add_child(level_transition_label)
+
+
+func _show_level_transition_label(stage: int, level_in_stage: int) -> void:
+
+	if level_transition_label == null:
+		return
+
+	level_transition_label.text = (
+		"STAGE %d - LEVEL %d" % [stage, level_in_stage]
+	)
+
+	level_transition_label.visible = true
+
+
+func _hide_level_transition_label() -> void:
+
+	if level_transition_label == null:
+		return
+
+	level_transition_label.visible = false
+
+
+func _wait_for_accept() -> void:
+
+	while not Input.is_action_just_pressed("ui_accept"):
+
+		await get_tree().process_frame
+
+
+func _process_game_over(delta: float) -> void:
+
+	game_over_timer += delta
+
+	if (
+		game_over_timer >= GAME_OVER_RETURN_DELAY
+		or Input.is_action_just_pressed("ui_accept")
+	):
+
+		return_to_title_screen()
+
+
+func return_to_title_screen() -> void:
+
+	get_tree().change_scene_to_file(TITLE_SCENE_PATH)
+
+
+# ============================================================
+# STAGES
+# ============================================================
+#
+# "level" keeps counting up forever (1, 2, 3, ...) exactly as
+# before, since virus difficulty scaling and the pong/tether
+# grant cadence are both keyed off of it.
+#
+# Stage and level-within-stage are just derived from it.
+#
+# ============================================================
+
+func get_stage() -> int:
+
+	return ((level - 1) / LEVELS_PER_STAGE) + 1
+
+
+func get_level_in_stage() -> int:
+
+	return ((level - 1) % LEVELS_PER_STAGE) + 1
+
+
+func is_stage_start(for_level: int = level) -> bool:
+
+	return ((for_level - 1) % LEVELS_PER_STAGE) == 0
+
+
+func get_fall_speed_name() -> String:
+
+	match fall_speed:
+
+		FallSpeed.LOW:
+			return "LOW"
+
+		FallSpeed.MEDIUM:
+			return "MED"
+
+		FallSpeed.HIGH:
+			return "HIGH"
+
+	return "LOW"
+
+
+# ============================================================
+# HUD
+# ============================================================
+
+func update_hud() -> void:
+
+	var leftover := occupied_cells.size()
+
+	if od_gauge != null:
+
+		od_gauge.update_leftover(leftover)
+
+	if score_multiplier != null:
+
+		score_multiplier.set_multiplier(
+			OverdoseGauge.multiplier_for_zone(
+				OverdoseGauge.compute_zone(leftover)
+			)
+		)
+
+	if clipboard != null:
+
+		clipboard.update_stats(
+			get_stage(),
+			get_level_in_stage(),
+			LEVELS_PER_STAGE,
+			get_virus_count(),
+			coins,
+			get_fall_speed_name()
+		)
+
+
 # ============================================================
 # BACKGROUND
 # ============================================================
@@ -394,6 +722,18 @@ func advance_to_next_level() -> void:
 
 
 	# ========================================================
+	# SNAPSHOT LEFTOVER PILL HALVES
+	# ========================================================
+	#
+	# Captured BEFORE clear_occupied_cells() wipes the board, so
+	# the end-of-stage OD/coin multiplier reflects what was
+	# actually left behind on this level.
+	# ========================================================
+
+	var leftover_halves_at_clear := occupied_cells.size()
+
+
+	# ========================================================
 	# REMOVE ACTIVE PLAYER PILL
 	# ========================================================
 
@@ -416,44 +756,14 @@ func advance_to_next_level() -> void:
 
 
 	# ========================================================
-	# CLEAR ALL SETTLED PILLS
+	# CLEAR ALL SETTLED PILLS / TETHERS / VIRUSES
 	# ========================================================
 
 	clear_occupied_cells()
 
 	clear_tether_cells()
 
-
-	# ========================================================
-	# CLEAR ALL VIRUSES
-	# ========================================================
-
 	clear_virus_cells()
-
-
-# ============================================================
-# CLEAR TETHERS
-# ============================================================
-
-func clear_tether_cells() -> void:
-
-	var tethers: Dictionary = {}
-
-	for tether in tether_cells.values():
-
-		if is_instance_valid(tether):
-
-			tethers[tether] = true
-
-
-	for tether in tethers.keys():
-
-		if is_instance_valid(tether):
-
-			tether.queue_free()
-
-
-	tether_cells.clear()
 
 
 	# ========================================================
@@ -464,12 +774,13 @@ func clear_tether_cells() -> void:
 
 
 	# ========================================================
-	# WAIT
+	# WAS THIS THE LAST LEVEL OF A STAGE?
+	# ========================================================
+	#
+	# Checked against the OLD level number, before incrementing.
 	# ========================================================
 
-	await get_tree().create_timer(
-		LEVEL_TRANSITION_DURATION
-	).timeout
+	var completed_stage: bool = (level % LEVELS_PER_STAGE) == 0
 
 
 	# ========================================================
@@ -480,28 +791,39 @@ func clear_tether_cells() -> void:
 
 
 	# ========================================================
-	# GRANT PONG EVERY 3 LEVELS
+	# STORE (BETWEEN STAGES)
+	# ========================================================
+	#
+	# Applies the OD-gauge coin multiplier for the stage that
+	# just ended, then shows the store and waits for Continue.
 	# ========================================================
 
-	if level % 3 == 0:
+	if completed_stage:
 
-		grant_pong_item()
+		_apply_stage_coin_multiplier(leftover_halves_at_clear)
 
+		# Reveal the screen so the store is actually visible --
+		# otherwise it's stuck running behind the opaque
+		# transition overlay (CanvasLayer, always on top).
+		set_transition_black(false)
 
-	# ========================================================
-	# GRANT TETHER EVERY 2 LEVELS
-	# ========================================================
+		await open_store()
 
-	if level % 2 == 0:
-
-		grant_tether_item()
+		# Hide again while the next stage's board/background/
+		# viruses get set up below.
+		set_transition_black(true)
 
 
 	# ========================================================
 	# ROLL NEW BACKGROUND
 	# ========================================================
+	#
+	# Only rerolls at the start of a new STAGE, not every level.
+	# ========================================================
 
-	apply_new_level_background()
+	if is_stage_start(level):
+
+		apply_new_level_background()
 
 
 	# ========================================================
@@ -509,6 +831,23 @@ func clear_tether_cells() -> void:
 	# ========================================================
 
 	generate_starting_viruses()
+
+
+	# ========================================================
+	# "STAGE # - LEVEL #" SCREEN (skipped when a stage just
+	# ended, since the store already handles that hand-off).
+	# ========================================================
+
+	if not completed_stage:
+
+		_show_level_transition_label(
+			get_stage(),
+			get_level_in_stage()
+		)
+
+		await _wait_for_accept()
+
+		_hide_level_transition_label()
 
 
 	# ========================================================
@@ -539,6 +878,104 @@ func clear_tether_cells() -> void:
 	# ========================================================
 
 	set_transition_black(false)
+
+
+# ============================================================
+# CLEAR TETHERS
+# ============================================================
+
+func clear_tether_cells() -> void:
+
+	var tethers: Dictionary = {}
+
+	for tether in tether_cells.values():
+
+		if is_instance_valid(tether):
+
+			tethers[tether] = true
+
+
+	for tether in tethers.keys():
+
+		if is_instance_valid(tether):
+
+			tether.queue_free()
+
+
+	tether_cells.clear()
+
+
+# ============================================================
+# VIRUS-CLEAR COIN REWARD
+# ============================================================
+
+func award_virus_coins() -> void:
+
+	coins += COINS_PER_VIRUS
+
+	stage_coins_earned += COINS_PER_VIRUS
+
+
+# ============================================================
+# STAGE-END COIN MULTIPLIER
+# ============================================================
+
+func _apply_stage_coin_multiplier(leftover_halves: int) -> void:
+
+	var zone := OverdoseGauge.compute_zone(leftover_halves)
+
+	var multiplier := OverdoseGauge.multiplier_for_zone(zone)
+
+	var target := int(round(stage_coins_earned * multiplier))
+
+	coins += (target - stage_coins_earned)
+
+	stage_coins_earned = 0
+
+
+# ============================================================
+# STORE
+# ============================================================
+
+func open_store() -> void:
+
+	if store_scene == null:
+
+		push_warning(
+			"Board: No store scene assigned; skipping store."
+		)
+
+		return
+
+
+	var parent := get_parent()
+
+	if parent == null:
+		return
+
+
+	var store_instance := store_scene.instantiate() as StoreController
+
+	if store_instance == null:
+
+		push_warning(
+			"Board: store_scene does not contain a StoreController."
+		)
+
+		return
+
+
+	parent.add_child(store_instance)
+
+	store_instance.setup(self)
+
+
+	await store_instance.closed
+
+
+	if is_instance_valid(store_instance):
+
+		store_instance.queue_free()
 
 
 # ============================================================
@@ -1004,6 +1441,10 @@ func spawn_pill() -> void:
 		return
 
 
+	if game_over:
+		return
+
+
 	if pill_scene == null:
 
 		push_warning(
@@ -1011,6 +1452,7 @@ func spawn_pill() -> void:
 		)
 
 		return
+
 
 	# ========================================================
 	# REMOVE ITEM PREVIEW
@@ -1062,8 +1504,9 @@ func spawn_pill() -> void:
 	# ========================================================
 
 	current_pill.orientation = Pill.Orientation.RIGHT
-	
+
 	current_pill.tether_sprite_texture = tether_sprite_texture
+
 
 	# ========================================================
 	# SPAWN POSITION
@@ -1078,6 +1521,23 @@ func spawn_pill() -> void:
 	fall_timer = 0.0
 
 	lock_timer = 0.0
+
+
+	# ========================================================
+	# GAME OVER CHECK
+	# ========================================================
+	#
+	# The incoming pill must be able to occupy its actual
+	# spawn cells. If either spawn cell is already occupied,
+	# the board is full at the spawn point and the run ends.
+	#
+	# ========================================================
+
+	if not can_pill_occupy(current_grid_position):
+
+		trigger_game_over()
+
+		return
 
 
 	update_pill_position()
@@ -1105,6 +1565,7 @@ func spawn_pill() -> void:
 	# player deploys it (see _handle_input) or when the pill
 	# locks in without being deployed (see settle_current_pill),
 	# both of which go through Inventory.fire_pending().
+	#
 	# ========================================================
 
 
@@ -1313,21 +1774,6 @@ func arm_tether_pill() -> bool:
 # ============================================================
 # TETHER ITEM
 # ============================================================
-
-func grant_tether_item() -> void:
-
-	if Inventory.is_full():
-		return
-
-
-	var tether_item := ItemTether.new()
-
-	tether_item.icon = load(
-		"res://art/ui/tether-icon.png"
-	)
-
-	Inventory.add_item(tether_item)
-
 
 func deploy_tether(
 	pill: Pill,
@@ -2215,6 +2661,8 @@ func _resolve_matches_and_gravity() -> bool:
 					VANISH_DURATION
 				)
 
+				award_virus_coins()
+
 				continue
 
 
@@ -2292,22 +2740,6 @@ func _remove_tether(
 # ============================================================
 # PONG PADDLE ITEM
 # ============================================================
-
-func grant_pong_item() -> void:
-
-	# Don't grant another Pong if all inventory slots are full.
-	if Inventory.is_full():
-		return
-
-
-	var pong_item := ItemPong.new()
-
-	pong_item.icon = preload(
-		"res://art/ui/pong-icon-temp.png"
-	)
-
-	Inventory.add_item(pong_item)
-
 
 func start_pong_item() -> void:
 
@@ -2412,6 +2844,8 @@ func pong_break_cell(
 		)
 
 		vanishing_halves[virus] = VANISH_DURATION
+
+		award_virus_coins()
 
 
 		_start_pong_break_resolution()

@@ -25,7 +25,7 @@ enum PreviewState {
 }
 
 
-@export_category("Pill")
+@export_group("Pill")
 
 @export_enum("RED", "YELLOW", "BLUE")
 var half_1_color: int = PillHalf.PillColor.RED:
@@ -65,7 +65,7 @@ var preview_state: int = PreviewState.CONNECTED:
 # TETHER
 # ============================================================
 
-@export_category("Tether")
+@export_group("Tether")
 
 @export var is_tether_pill := false:
 	set(value):

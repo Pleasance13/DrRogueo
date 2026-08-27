@@ -18,7 +18,9 @@ func _init() -> void:
 
 	rarity = Item.Rarity.COMMON
 
-	cost = 05
+	cost = 10
+
+	sell_price = 3
 
 	description = (
 		"Creates a temporary bridge between the first matching " +

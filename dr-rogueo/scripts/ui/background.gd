@@ -7,7 +7,7 @@ extends Node2D
 # CHECKERBOARD
 # ============================================================
 
-@export_category("Checkerboard")
+@export_group("Checkerboard")
 
 @export var checkerboard_path: NodePath = NodePath("Checkerboard")
 
@@ -16,7 +16,7 @@ extends Node2D
 # WAVE
 # ============================================================
 
-@export_category("Wave")
+@export_group("Wave")
 
 @export_range(0.25, 8.0, 0.05)
 var wave_width: float = 3.0:
@@ -61,7 +61,7 @@ var dark_color: Color = Color("#7C7C7C"):
 # COLOR MODE
 # ============================================================
 
-@export_category("Color Mode")
+@export_group("Color Mode")
 
 @export
 var use_color_presets: bool = true
@@ -71,7 +71,7 @@ var use_color_presets: bool = true
 # COLOR PRESETS
 # ============================================================
 
-@export_category("Color Presets")
+@export_group("Color Presets")
 
 @export
 var color_presets: Array[BackgroundPreset] = []
@@ -81,7 +81,7 @@ var color_presets: Array[BackgroundPreset] = []
 # SHADOW COLOR
 # ============================================================
 
-@export_category("Shadow")
+@export_group("Shadow")
 
 @export
 var shadow_color: Color = Color.BLACK:
@@ -94,7 +94,7 @@ var shadow_color: Color = Color.BLACK:
 # RUNTIME PRESET
 # ============================================================
 
-@export_category("Runtime")
+@export_group("Runtime")
 
 @export
 var runtime_preset_category: BackgroundPreset.Category = (
@@ -114,7 +114,7 @@ var _runtime_initialized: bool = false
 # SHADING
 # ============================================================
 
-@export_category("Shading")
+@export_group("Shading")
 
 @export_range(-1.0, 1.0, 0.01)
 var shade_brightness: float = 0.0:
@@ -141,7 +141,7 @@ var shade_strength: float = 0.45:
 # DITHERING
 # ============================================================
 
-@export_category("Dithering")
+@export_group("Dithering")
 
 enum DitherType {
 	NONE,

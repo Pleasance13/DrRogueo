@@ -7,7 +7,7 @@ extends Resource
 # PRESET
 # ============================================================
 
-@export_category("Preset")
+@export_group("Preset")
 
 @export
 var preset_name: String = "New Preset"
@@ -38,7 +38,7 @@ var category: Category = Category.NORMAL
 # CHECKERBOARD COLORS
 # ============================================================
 
-@export_category("Checkerboard")
+@export_group("Checkerboard")
 
 @export
 var light_color: Color = Color("#F8F8F8")
@@ -51,7 +51,7 @@ var dark_color: Color = Color("#7C7C7C")
 # SHADOW
 # ============================================================
 
-@export_category("Shadow")
+@export_group("Shadow")
 
 @export
 var shadow_color: Color = Color.BLACK
@@ -61,7 +61,7 @@ var shadow_color: Color = Color.BLACK
 # WAVE
 # ============================================================
 
-@export_category("Wave")
+@export_group("Wave")
 
 @export_range(0.25, 8.0, 0.05)
 var wave_width: float = 3.0
@@ -77,7 +77,7 @@ var wave_speed: float = 0.25
 # SHADING
 # ============================================================
 
-@export_category("Shading")
+@export_group("Shading")
 
 @export_range(-1.0, 1.0, 0.01)
 var shade_brightness: float = 0.0
@@ -93,7 +93,7 @@ var shade_strength: float = 0.45
 # DITHERING
 # ============================================================
 
-@export_category("Dithering")
+@export_group("Dithering")
 
 @export
 var dither_type: Background.DitherType = Background.DitherType.BAYER_4X4

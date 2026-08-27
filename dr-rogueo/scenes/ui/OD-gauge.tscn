@@ -1,11 +1,18 @@
-[gd_scene load_steps=4 format=3 uid="uid://dr2qu03qen5pf"]
+[gd_scene load_steps=7 format=3 uid="uid://dr2qu03qen5pf"]
 
 [ext_resource type="Texture2D" uid="uid://bs5myqih4rp7e" path="res://art/ui/OD-box.png" id="1_s2j4v"]
 [ext_resource type="Texture2D" uid="uid://ck02evevdo7lw" path="res://art/ui/OD-gauge.png" id="2_1poyj"]
 [ext_resource type="Texture2D" uid="uid://4jm7b8ucf4w8" path="res://art/ui/OD-warning.png" id="3_1poyj"]
+[ext_resource type="Script" path="res://scripts/ui/overdose_gauge.gd" id="4_odgge"]
+[ext_resource type="Shader" path="res://shaders/ui/vertical_fill.gdshader" id="5_odgge"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_odgge"]
+shader = ExtResource("5_odgge")
+shader_parameter/fill = 1.0
 
 [node name="OD-gauge" type="Node2D"]
 texture_filter = 1
+script = ExtResource("4_odgge")
 
 [node name="OD-Gauge-Box" type="Sprite2D" parent="."]
 texture = ExtResource("1_s2j4v")
@@ -13,6 +20,7 @@ centered = false
 
 [node name="OD-Gauge" type="Sprite2D" parent="."]
 position = Vector2(23, 8)
+material = SubResource("ShaderMaterial_odgge")
 texture = ExtResource("2_1poyj")
 centered = false
 
