@@ -24,6 +24,7 @@ static func create_catalog() -> Array[Item]:
 	return [
 		_create_tether(),
 		_create_pong(),
+		_create_shift(),
 	]
 
 
@@ -33,3 +34,7 @@ static func _create_tether() -> Item:
 
 static func _create_pong() -> Item:
 	return ItemPong.new()
+
+
+static func _create_shift() -> Item:
+	return ItemShift.new()

@@ -20,7 +20,7 @@ func _init() -> void:
 
 	cost = 10
 
-	sell_price = 3
+	sell_price = 5
 
 	description = (
 		"Creates a temporary bridge between the first matching " +

@@ -59,6 +59,7 @@ var level: int = 1
 
 @export var tether_sprite_texture: Texture2D
 
+@export var shift_sprite_texture: Texture2D
 
 # ============================================================
 # STORE
@@ -71,7 +72,7 @@ var level: int = 1
 # How many levels make up one stage. The store opens between
 # every stage, and the background preset only rerolls at the
 # start of a new stage (not every level).
-const LEVELS_PER_STAGE := 5
+const LEVELS_PER_STAGE := 3
 
 const COINS_PER_VIRUS := 1
 
@@ -1385,6 +1386,7 @@ func create_next_preview() -> void:
 	next_pill.orientation = Pill.Orientation.RIGHT
 
 	next_pill.is_tether_pill = false
+	next_pill.is_shift_pill = false
 
 	randomize_pill_colors(next_pill)
 
@@ -1506,6 +1508,7 @@ func spawn_pill() -> void:
 	current_pill.orientation = Pill.Orientation.RIGHT
 
 	current_pill.tether_sprite_texture = tether_sprite_texture
+	current_pill.shift_sprite_texture = shift_sprite_texture
 
 
 	# ========================================================
@@ -2239,6 +2242,95 @@ func find_tether_endpoint(
 
 
 # ============================================================
+# SHIFT PILL
+# ============================================================
+
+func get_shift_direction(pill_orientation: int) -> Vector2i:
+
+	match pill_orientation:
+
+		Pill.Orientation.RIGHT:
+			return Vector2i(1, 0)
+
+		Pill.Orientation.DOWN:
+			return Vector2i(0, 1)
+
+		Pill.Orientation.LEFT:
+			return Vector2i(-1, 0)
+
+		Pill.Orientation.UP:
+			return Vector2i(0, -1)
+
+	return Vector2i(0, 1)
+
+
+
+func start_shift(direction: Vector2i) -> void:
+
+	if resolving_board:
+		return
+
+	resolving_board = true
+
+
+	# --------------------------------------------------------
+	# PHASE 1: Shift gravity toward the arrow's direction until
+	# everything that can move that way has stopped.
+	# --------------------------------------------------------
+
+	await apply_gravity(direction)
+
+
+	# --------------------------------------------------------
+	# PHASE 2: CHECK FOR MATCHES WHILE THE BOARD IS STILL
+	# IN ITS SHIFTED POSITION.
+	#
+	# This is the important part. Previously we immediately
+	# reapplied downward gravity here, which meant an upward/
+	# sideways shift could effectively undo itself before the
+	# match check ever happened.
+	# --------------------------------------------------------
+
+	var level_cleared := await _resolve_matches_and_gravity()
+
+
+	if level_cleared:
+
+		resolving_board = false
+
+		await advance_to_next_level()
+
+		return
+
+
+	# --------------------------------------------------------
+	# PHASE 3: No matches were created by the shift.
+	#
+	# NOW restore normal downward gravity.
+	# --------------------------------------------------------
+
+	if direction != Vector2i(0, 1):
+
+		await apply_gravity(
+			Vector2i(0, 1)
+		)
+
+
+	resolving_board = false
+
+
+	# --------------------------------------------------------
+	# The shift is finished. Spawn the next pill.
+	#
+	# We deliberately do not call resolve_board() here because
+	# _resolve_matches_and_gravity() already handled any matches
+	# that existed immediately after the shift.
+	# --------------------------------------------------------
+
+	spawn_pill()
+
+
+# ============================================================
 # NEXT PILL ITEM
 # ============================================================
 
@@ -2264,10 +2356,17 @@ func arm_next_pill_item(item: Item) -> bool:
 	if item.id == "tether":
 
 		next_pill.is_tether_pill = true
+		next_pill.is_shift_pill = false
+
+	elif item.id == "shift":
+
+		next_pill.is_tether_pill = false
+		next_pill.is_shift_pill = true
 
 	else:
 
 		next_pill.is_tether_pill = false
+		next_pill.is_shift_pill = false
 
 
 	# ========================================================
@@ -2326,6 +2425,7 @@ func clear_next_pill_item() -> void:
 		next_pill.visible = true
 
 		next_pill.is_tether_pill = false
+		next_pill.is_shift_pill = false
 
 		next_pill.queue_redraw()
 
@@ -2415,6 +2515,59 @@ func settle_current_pill() -> void:
 		next_pill_item = null
 
 		spawn_pill()
+
+		return
+
+
+	# ========================================================
+	# SHIFT PILL
+	# ========================================================
+	#
+	# Fires automatically the instant it settles (no manual
+	# deploy step like Tether). Whatever orientation it locked
+	# in at determines the shift direction.
+	# ========================================================
+
+	if current_pill.is_shift_pill:
+
+		var shift_direction := get_shift_direction(
+			current_pill.orientation
+		)
+
+		var vanishing_pill := current_pill
+
+		current_pill = null
+
+		fall_timer = 0.0
+		lock_timer = 0.0
+
+		next_pill_item = null
+
+
+		# ----------------------------------------------------
+		# Play the "disappearing" frame for the same duration
+		# a normal matched pill half uses, then actually remove
+		# it and trigger the board-wide shift.
+		#
+		# NOTE: resolving_board is intentionally NOT set here -
+		# start_shift() owns that flag itself, and setting it
+		# early would make start_shift()'s own guard clause
+		# ("if resolving_board: return") fire immediately and
+		# silently no-op the whole shift.
+		# ----------------------------------------------------
+
+		vanishing_pill.play_shift_vanish()
+
+		await get_tree().create_timer(
+			VANISH_DURATION
+		).timeout
+
+		if is_instance_valid(vanishing_pill):
+
+			vanishing_pill.queue_free()
+
+
+		start_shift(shift_direction)
 
 		return
 
@@ -3185,7 +3338,7 @@ func wait_for_vanishing_halves() -> void:
 # GRAVITY
 # ============================================================
 
-func apply_gravity() -> void:
+func apply_gravity(direction: Vector2i = Vector2i(0, 1)) -> void:
 
 	while true:
 
@@ -3199,9 +3352,9 @@ func apply_gravity() -> void:
 			) -> bool:
 
 				return (
-					gravity_unit_lowest_row(a)
+					gravity_unit_leading_position(a, direction)
 					>
-					gravity_unit_lowest_row(b)
+					gravity_unit_leading_position(b, direction)
 				)
 		)
 
@@ -3215,7 +3368,8 @@ func apply_gravity() -> void:
 
 			if gravity_unit_can_fall(
 				unit,
-				moving_halves
+				moving_halves,
+				direction
 			):
 
 				movable_units.append(unit)
@@ -3242,7 +3396,7 @@ func apply_gravity() -> void:
 
 		for unit in movable_units:
 
-			move_gravity_unit(unit)
+			move_gravity_unit(unit, direction)
 
 
 		await get_tree().process_frame
@@ -3400,7 +3554,8 @@ func find_half_cell(
 
 func gravity_unit_can_fall(
 	unit: Dictionary,
-	moving_halves: Dictionary
+	moving_halves: Dictionary,
+	direction: Vector2i = Vector2i(0, 1)
 ) -> bool:
 
 	var cells: Array[Vector2i] = (
@@ -3411,11 +3566,16 @@ func gravity_unit_can_fall(
 	for cell in cells:
 
 		var destination := (
-			cell + Vector2i(0, 1)
+			cell + direction
 		)
 
 
-		if destination.y >= BOARD_HEIGHT:
+		if destination.x < 0 or destination.x >= BOARD_WIDTH:
+
+			return false
+
+
+		if destination.y < 0 or destination.y >= BOARD_HEIGHT:
 
 			return false
 
@@ -3476,11 +3636,19 @@ func gravity_unit_can_fall(
 
 
 # ============================================================
-# LOWEST UNIT ROW
+# GRAVITY UNIT LEADING POSITION
+# ============================================================
+#
+# How far along the given direction this unit's furthest-
+# forward cell sits. Generalizes the old "lowest row" concept
+# (which only ever assumed downward gravity) to any of the 4
+# directions, so units closer to their direction of travel get
+# resolved first each gravity step.
 # ============================================================
 
-func gravity_unit_lowest_row(
-	unit: Dictionary
+func gravity_unit_leading_position(
+	unit: Dictionary,
+	direction: Vector2i
 ) -> int:
 
 	var cells: Array[Vector2i] = (
@@ -3488,17 +3656,25 @@ func gravity_unit_lowest_row(
 	)
 
 
-	var lowest := cells[0].y
+	var leading := (
+		cells[0].x * direction.x
+		+ cells[0].y * direction.y
+	)
 
 
 	for cell in cells:
 
-		if cell.y > lowest:
+		var value := (
+			cell.x * direction.x
+			+ cell.y * direction.y
+		)
 
-			lowest = cell.y
+		if value > leading:
+
+			leading = value
 
 
-	return lowest
+	return leading
 
 
 # ============================================================
@@ -3530,7 +3706,8 @@ func unit_contains_half(
 # ============================================================
 
 func move_gravity_unit(
-	unit: Dictionary
+	unit: Dictionary,
+	direction: Vector2i = Vector2i(0, 1)
 ) -> void:
 
 	var halves: Array[PillHalf] = (
@@ -3554,7 +3731,7 @@ func move_gravity_unit(
 	for cell in cells:
 
 		var destination := (
-			cell + Vector2i(0, 1)
+			cell + direction
 		)
 
 

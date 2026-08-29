@@ -80,6 +80,34 @@ var preview_state: int = PreviewState.CONNECTED:
 
 
 # ============================================================
+# SHIFT
+# ============================================================
+
+@export_group("Shift")
+
+@export var is_shift_pill := false:
+	set(value):
+		is_shift_pill = value
+
+		if not value:
+			shift_vanishing = false
+
+		_update_pill()
+
+
+@export var shift_sprite_texture: Texture2D:
+	set(value):
+		shift_sprite_texture = value
+		_update_pill()
+
+
+# True while playing the brief "disappearing" frame right after
+# a Shift Pill settles, before Board actually removes it and
+# triggers the gravity shift. See Pill.play_shift_vanish().
+var shift_vanishing := false
+
+
+# ============================================================
 # CONSTANTS
 # ============================================================
 
@@ -111,6 +139,32 @@ const TETHER_HORIZONTAL_RIGHT := Rect2(8, 24, 8, 8)
 
 const TETHER_VERTICAL_TOP := Rect2(0, 0, 8, 8)
 const TETHER_VERTICAL_BOTTOM := Rect2(0, 8, 8, 8)
+
+
+# ============================================================
+# SHIFT SPRITESHEET
+# ============================================================
+#
+# 24x40 sheet, 8px cells. Each direction is ONE sprite spanning
+# both cells of the pill (not two separate 8x8 halves).
+#
+# Vertical block (8 wide x 16 tall each), left-to-right:
+#   UP DOWN VANISH
+#
+# Horizontal rows (16 wide x 8 tall each), top-to-bottom:
+#   LEFT
+#   RIGHT
+#   VANISH
+#
+# ============================================================
+
+const SHIFT_UP := Rect2(0, 0, 8, 16)
+const SHIFT_DOWN := Rect2(8, 0, 8, 16)
+const SHIFT_VANISH_VERTICAL := Rect2(16, 0, 8, 16)
+
+const SHIFT_LEFT := Rect2(0, 16, 16, 8)
+const SHIFT_RIGHT := Rect2(0, 24, 16, 8)
+const SHIFT_VANISH_HORIZONTAL := Rect2(0, 32, 16, 8)
 
 
 # ============================================================
@@ -148,6 +202,17 @@ func _ensure_tether_sprite() -> void:
 
 
 # ============================================================
+# SHIFT VANISH
+# ============================================================
+
+func play_shift_vanish() -> void:
+
+	shift_vanishing = true
+
+	queue_redraw()
+
+
+# ============================================================
 # VISUAL SETUP
 # ============================================================
 
@@ -177,6 +242,25 @@ func _update_pill() -> void:
 			half_2.visible = false
 
 		tether_sprite.visible = true
+
+		queue_redraw()
+
+		return
+
+
+	# ========================================================
+	# SHIFT VISUAL
+	# ========================================================
+
+	if is_shift_pill:
+
+		if half_1 != null:
+			half_1.visible = false
+
+		if half_2 != null:
+			half_2.visible = false
+
+		tether_sprite.visible = false
 
 		queue_redraw()
 
@@ -296,8 +380,21 @@ func _update_pill() -> void:
 
 func _draw() -> void:
 
-	if not is_tether_pill:
+	if is_tether_pill:
+
+		_draw_tether()
+
 		return
+
+
+	if is_shift_pill:
+
+		_draw_shift()
+
+		return
+
+
+func _draw_tether() -> void:
 
 	if tether_sprite_texture == null:
 		return
@@ -365,6 +462,68 @@ func _draw() -> void:
 			Vector2(CELL_SIZE, CELL_SIZE)
 		),
 		region_2
+	)
+
+
+func _draw_shift() -> void:
+
+	if shift_sprite_texture == null:
+		return
+
+
+	var is_vertical := (
+		orientation == Orientation.UP
+		or orientation == Orientation.DOWN
+	)
+
+
+	var region: Rect2
+	var dest_position: Vector2
+	var dest_size: Vector2
+
+
+	if is_vertical:
+
+		dest_position = Vector2(0, -CELL_SIZE)
+		dest_size = Vector2(CELL_SIZE, CELL_SIZE * 2)
+
+		if shift_vanishing:
+
+			region = SHIFT_VANISH_VERTICAL
+
+		elif orientation == Orientation.UP:
+
+			region = SHIFT_UP
+
+		else:
+
+			region = SHIFT_DOWN
+
+	else:
+
+		dest_position = Vector2(0, 0)
+		dest_size = Vector2(CELL_SIZE * 2, CELL_SIZE)
+
+		if shift_vanishing:
+
+			region = SHIFT_VANISH_HORIZONTAL
+
+		elif orientation == Orientation.LEFT:
+
+			region = SHIFT_LEFT
+
+		else:
+
+			region = SHIFT_RIGHT
+
+
+	draw_texture_rect_region(
+		shift_sprite_texture,
+		Rect2(
+			dest_position,
+			dest_size
+		),
+		region
 	)
 
 
