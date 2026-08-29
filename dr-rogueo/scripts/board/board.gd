@@ -61,6 +61,8 @@ var level: int = 1
 
 @export var shift_sprite_texture: Texture2D
 
+@export var ghost_sprite_texture: Texture2D
+
 # ============================================================
 # STORE
 # ============================================================
@@ -336,6 +338,32 @@ func _process(delta: float) -> void:
 	var can_fall := can_pill_occupy(
 		current_grid_position + Vector2i(0, 1)
 	)
+
+
+	# --------------------------------------------------------
+	# GHOST FORCED RE-SOLIDIFY AT THE FLOOR
+	# --------------------------------------------------------
+	#
+	# A ghosting pill ignores filled cells, so "cannot fall
+	# further" only happens once it's reached the actual bottom
+	# of the board. It must re-solidify immediately rather than
+	# sit there as a ghost.
+	# --------------------------------------------------------
+
+	if not can_fall and current_pill.is_ghosting:
+
+		solidify_ghost_pill()
+
+		if current_pill == null:
+
+			# Destroying the last virus during the resolidify
+			# already tore the pill down and is handling the
+			# level transition.
+			return
+
+		can_fall = can_pill_occupy(
+			current_grid_position + Vector2i(0, 1)
+		)
 
 
 	# --------------------------------------------------------
@@ -1388,6 +1416,7 @@ func create_next_preview() -> void:
 	next_pill.is_tether_pill = false
 	next_pill.is_shift_pill = false
 	next_pill.is_dissolver_pill = false
+	next_pill.is_ghost_pill = false
 
 	randomize_pill_colors(next_pill)
 
@@ -1510,6 +1539,7 @@ func spawn_pill() -> void:
 
 	current_pill.tether_sprite_texture = tether_sprite_texture
 	current_pill.shift_sprite_texture = shift_sprite_texture
+	current_pill.ghost_sprite_texture = ghost_sprite_texture
 
 
 	# ========================================================
@@ -1604,6 +1634,19 @@ func _handle_input() -> void:
 			resolve_board()
 
 			return
+
+
+	# ========================================================
+	# GHOST PILL TOGGLE
+	# ========================================================
+
+	if (
+		current_pill != null
+		and current_pill.is_ghost_pill
+		and Input.is_action_just_pressed("ui_accept")
+	):
+
+		toggle_ghost_pill()
 
 
 	# ========================================================
@@ -1740,6 +1783,8 @@ func can_pill_occupy(
 		grid_position
 	)
 
+	var ghosting := current_pill.is_ghosting
+
 
 	for cell in cells:
 
@@ -1755,6 +1800,12 @@ func can_pill_occupy(
 		# board's top edge.
 		if cell.y >= BOARD_HEIGHT:
 			return false
+
+
+		# A ghosting pill only collides with the board bounds
+		# above -- it ignores everything already on the board.
+		if ghosting:
+			continue
 
 
 		if is_cell_filled(cell):
@@ -2332,6 +2383,157 @@ func start_shift(direction: Vector2i) -> void:
 
 
 # ============================================================
+# GHOST PILL ITEM
+# ============================================================
+
+func toggle_ghost_pill() -> void:
+
+	if current_pill == null:
+		return
+
+	if not current_pill.is_ghost_pill:
+		return
+
+
+	if current_pill.is_ghosting:
+
+		solidify_ghost_pill()
+
+		if current_pill != null:
+
+			# Single-use: once solidified, this pill can't
+			# re-enter ghost mode.
+			current_pill.is_ghost_pill = false
+
+	else:
+
+		current_pill.is_ghosting = true
+
+
+func solidify_ghost_pill() -> void:
+
+	if current_pill == null:
+		return
+
+	if not current_pill.is_ghosting:
+		return
+
+	current_pill.is_ghosting = false
+
+
+	var cells := current_pill.get_occupied_cells(
+		current_grid_position
+	)
+
+	var destroyed_something := false
+
+	for cell in cells:
+
+		if _clear_cell_for_ghost_replace(cell):
+
+			destroyed_something = true
+
+
+	lock_timer = 0.0
+	fall_timer = 0.0
+
+
+	if destroyed_something and virus_cells.is_empty():
+
+		_finish_level_after_ghost_clear()
+
+
+func _clear_cell_for_ghost_replace(
+	cell: Vector2i
+) -> bool:
+
+	var cleared := false
+
+
+	# --------------------------------------------------------
+	# PILL HALF
+	# --------------------------------------------------------
+
+	if occupied_cells.has(cell):
+
+		var half := occupied_cells[cell] as PillHalf
+
+		occupied_cells.erase(cell)
+
+		if is_instance_valid(half):
+
+			var partner := half.partner_half
+
+			if is_instance_valid(partner):
+
+				partner.partner_half = null
+				half.partner_half = null
+
+				partner.pill_state = (
+					PillHalf.PillState.SEPARATED
+				)
+
+			half.pill_state = PillHalf.PillState.VANISHING
+
+			vanishing_halves[half] = VANISH_DURATION
+
+		cleared = true
+
+
+	# --------------------------------------------------------
+	# VIRUS
+	#
+	# NOTE: no coin reward here -- this is a replace, not a
+	# match clear. Call award_virus_coins() below if you'd
+	# rather it pay out like a normal virus kill.
+	# --------------------------------------------------------
+
+	if virus_cells.has(cell):
+
+		var virus := virus_cells[cell] as Virus
+
+		virus_cells.erase(cell)
+
+		if is_instance_valid(virus):
+
+			virus.visual_state = Virus.VisualState.VANISHING
+
+			vanishing_halves[virus] = VANISH_DURATION
+
+		cleared = true
+
+
+	# --------------------------------------------------------
+	# TETHER
+	# --------------------------------------------------------
+
+	if tether_cells.has(cell):
+
+		var tether := tether_cells[cell] as Tether
+
+		_remove_tether(tether)
+
+		cleared = true
+
+
+	return cleared
+
+
+func _finish_level_after_ghost_clear() -> void:
+
+	if current_pill != null:
+
+		current_pill.queue_free()
+
+		current_pill = null
+
+
+	await wait_for_vanishing_halves()
+
+	await advance_to_next_level()
+
+
+# ============================================================
 # NEXT PILL ITEM
 # ============================================================
 
@@ -2358,26 +2560,41 @@ func arm_next_pill_item(item: Item) -> bool:
 
 		next_pill.is_tether_pill = true
 		next_pill.is_shift_pill = false
+		next_pill.is_dissolver_pill = false
+		next_pill.is_ghost_pill = false
 
 	elif item.id == "shift":
 
 		next_pill.is_tether_pill = false
 		next_pill.is_shift_pill = true
+		next_pill.is_dissolver_pill = false
+		next_pill.is_ghost_pill = false
 
 	elif item is ItemDissolver:
 
 		var dissolver_item := item as ItemDissolver
 
 		next_pill.is_tether_pill = false
+		next_pill.is_shift_pill = false
 		next_pill.is_dissolver_pill = true
+		next_pill.is_ghost_pill = false
 
 		next_pill.half_1_color = dissolver_item.dissolver_color
 		next_pill.half_2_color = dissolver_item.dissolver_color
+
+	elif item.id == "ghost":
+
+		next_pill.is_tether_pill = false
+		next_pill.is_shift_pill = false
+		next_pill.is_dissolver_pill = false
+		next_pill.is_ghost_pill = true
 
 	else:
 
 		next_pill.is_tether_pill = false
 		next_pill.is_shift_pill = false
+		next_pill.is_dissolver_pill = false
+		next_pill.is_ghost_pill = false
 
 
 	# ========================================================
@@ -2438,6 +2655,7 @@ func clear_next_pill_item() -> void:
 		next_pill.is_tether_pill = false
 		next_pill.is_shift_pill = false
 		next_pill.is_dissolver_pill = false
+		next_pill.is_ghost_pill = false
 
 		next_pill.queue_redraw()
 

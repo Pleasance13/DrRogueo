@@ -128,6 +128,63 @@ var shift_vanishing := false
 
 
 # ============================================================
+# GHOST
+# ============================================================
+#
+# is_ghost_pill: whether this specific falling pill was armed
+# with the Ghost Pill item (set by Board.arm_next_pill_item()).
+# Gates whether pressing A does anything.
+#
+# is_ghosting: runtime state toggled by pressing A while this
+# pill is falling. While true, the normal Half1/Half2 sprites
+# are hidden and a dedicated ghost sprite is drawn instead
+# (see _draw_ghost_pill()). Collision bypass itself lives in
+# Board.can_pill_occupy() -- this is purely visual/state here.
+#
+# ============================================================
+
+@export_group("Ghost")
+
+@export var is_ghost_pill := false
+
+@export var ghost_sprite_texture: Texture2D:
+	set(value):
+		ghost_sprite_texture = value
+		queue_redraw()
+
+var is_ghosting := false:
+	set(value):
+		is_ghosting = value
+		_update_pill()
+
+
+# ============================================================
+# GHOST SPRITESHEET
+# ============================================================
+#
+# ghost_pill.png is 16x32.
+#
+# Top half (y 0-15)   -> VERTICAL animation, two 8x16 frames
+#                        side by side: [0,0] and [8,0].
+#
+# Bottom half (y 16-31) -> HORIZONTAL animation, two 16x8
+#                          frames stacked: [0,16] and [0,24].
+#
+# There's no separate left/right or up/down art -- the same
+# two frames are used regardless of which way the pill is
+# actually facing, since the ghost silhouette covers the same
+# footprint either way.
+#
+# ============================================================
+
+const GHOST_VERTICAL_FRAME_0 := Rect2(0, 0, 8, 16)
+const GHOST_VERTICAL_FRAME_1 := Rect2(8, 0, 8, 16)
+
+const GHOST_HORIZONTAL_FRAME_0 := Rect2(0, 16, 16, 8)
+const GHOST_HORIZONTAL_FRAME_1 := Rect2(0, 24, 16, 8)
+
+
+# ============================================================
 # CONSTANTS
 # ============================================================
 
@@ -194,6 +251,7 @@ const SHIFT_VANISH_HORIZONTAL := Rect2(0, 32, 16, 8)
 var tether_sprite: Node2D
 
 
+
 # ============================================================
 # READY
 # ============================================================
@@ -202,7 +260,28 @@ func _ready() -> void:
 
 	_ensure_tether_sprite()
 
+	if not Engine.is_editor_hint():
+
+		if not AnimClock.frame_changed.is_connected(
+			_on_anim_frame_changed
+		):
+
+			AnimClock.frame_changed.connect(
+				_on_anim_frame_changed
+			)
+
 	_update_pill()
+
+
+# ============================================================
+# SHARED ANIM CLOCK
+# ============================================================
+
+func _on_anim_frame_changed(_frame: int) -> void:
+
+	if is_ghosting:
+
+		queue_redraw()
 
 
 # ============================================================
@@ -273,6 +352,25 @@ func _update_pill() -> void:
 	# ========================================================
 
 	if is_shift_pill:
+
+		if half_1 != null:
+			half_1.visible = false
+
+		if half_2 != null:
+			half_2.visible = false
+
+		tether_sprite.visible = false
+
+		queue_redraw()
+
+		return
+
+
+	# ========================================================
+	# GHOST VISUAL
+	# ========================================================
+
+	if is_ghosting:
 
 		if half_1 != null:
 			half_1.visible = false
@@ -402,6 +500,27 @@ func _update_pill() -> void:
 
 
 # ============================================================
+# GHOST VISUAL
+# ============================================================
+
+func _update_ghost_visual() -> void:
+
+	if not is_inside_tree():
+		return
+
+	var half_1 := get_node_or_null("Half1") as PillHalf
+	var half_2 := get_node_or_null("Half2") as PillHalf
+
+	var alpha := 0.45 if is_ghosting else 1.0
+
+	if half_1 != null:
+		half_1.modulate.a = alpha
+
+	if half_2 != null:
+		half_2.modulate.a = alpha
+
+
+# ============================================================
 # DRAW
 # ============================================================
 
@@ -419,6 +538,74 @@ func _draw() -> void:
 		_draw_shift()
 
 		return
+
+
+	if is_ghosting:
+
+		_draw_ghost()
+
+		return
+
+
+func _draw_ghost() -> void:
+
+	if ghost_sprite_texture == null:
+		return
+
+
+	var horizontal := (
+		orientation == Orientation.RIGHT
+		or orientation == Orientation.LEFT
+	)
+
+
+	var frame := 0
+
+	if not Engine.is_editor_hint():
+
+		frame = AnimClock.frame
+
+
+	var region: Rect2
+	var rect: Rect2
+
+
+	if horizontal:
+
+		region = (
+			GHOST_HORIZONTAL_FRAME_1
+			if frame == 1
+			else GHOST_HORIZONTAL_FRAME_0
+		)
+
+		# Bounding box is the same whether it's RIGHT or LEFT --
+		# both halves span x=0..16, y=0..8 either way.
+		rect = Rect2(
+			Vector2(0, 0),
+			Vector2(CELL_SIZE * 2, CELL_SIZE)
+		)
+
+	else:
+
+		region = (
+			GHOST_VERTICAL_FRAME_1
+			if frame == 1
+			else GHOST_VERTICAL_FRAME_0
+		)
+
+		# Bounding box is the same whether it's DOWN or UP --
+		# both halves span x=0..8, y=-8..8 either way.
+		rect = Rect2(
+			Vector2(0, -CELL_SIZE),
+			Vector2(CELL_SIZE, CELL_SIZE * 2)
+		)
+
+
+	draw_texture_rect_region(
+		ghost_sprite_texture,
+		rect,
+		region
+	)
 
 
 func _draw_tether() -> void:

@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://7ml0t1gy6l3h"]
+[gd_scene load_steps=28 format=3 uid="uid://7ml0t1gy6l3h"]
 
 [ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_0wfyh"]
 [ext_resource type="PackedScene" uid="uid://c7ngsf876kyec" path="res://scenes/board/board.tscn" id="1_o5qli"]
@@ -26,6 +26,7 @@
 [ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="15_og1vs"]
 [ext_resource type="PackedScene" uid="uid://dc1kkw0qxwj0y" path="res://scenes/ui/store.tscn" id="22_y6deb"]
 [ext_resource type="Texture2D" uid="uid://dmo06dxomchto" path="res://art/pills/shift_pill.png" id="23_2wyq8"]
+[ext_resource type="Texture2D" uid="uid://cxu60lwfk4ckh" path="res://art/pills/ghost_pill.png" id="24_vxglm"]
 
 [node name="Main" type="Node2D"]
 texture_filter = 1
@@ -91,6 +92,7 @@ background = NodePath("../SubViewportContainer/SubViewport/Background")
 pong_sprite_texture = ExtResource("6_tefeu")
 tether_sprite_texture = ExtResource("12_a8y0u")
 shift_sprite_texture = ExtResource("23_2wyq8")
+ghost_sprite_texture = ExtResource("24_vxglm")
 store_scene = ExtResource("22_y6deb")
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8

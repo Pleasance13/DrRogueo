@@ -9,8 +9,7 @@
 texture_filter = 1
 script = ExtResource("1_aqytg")
 orientation = 3
-is_shift_pill = null
-is_dissolver_pill = null
+is_ghost_pill = null
 
 [node name="Half1" type="Node2D" parent="."]
 script = ExtResource("2_vrjvl")

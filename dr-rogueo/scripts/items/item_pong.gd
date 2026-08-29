@@ -21,11 +21,11 @@ func _init() -> void:
 
 	display_name = "PONG PILL"
 
-	rarity = Item.Rarity.RARE
+	rarity = Item.Rarity.EPIC
 
-	cost = 30
+	cost = 50
 
-	sell_price = 20
+	sell_price = 25
 
 	description = (
 		"Summons a paddle at the top of the board that stays " +
