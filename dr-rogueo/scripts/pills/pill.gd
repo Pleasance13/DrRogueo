@@ -108,6 +108,26 @@ var shift_vanishing := false
 
 
 # ============================================================
+# DISSOLVER
+# ============================================================
+#
+# A Dissolver Pill falls, rotates, and matches exactly like a
+# normal pill - it's just flagged so board.gd knows to trigger
+# its global same-color clear when it lands in a match. Both
+# halves always share half_1_color/half_2_color; board.gd sets
+# them equal when it arms a Dissolver item.
+#
+# ============================================================
+
+@export_group("Dissolver")
+
+@export var is_dissolver_pill := false:
+	set(value):
+		is_dissolver_pill = value
+		_update_pill()
+
+
+# ============================================================
 # CONSTANTS
 # ============================================================
 
@@ -284,6 +304,13 @@ func _update_pill() -> void:
 
 	half_1.pill_color = half_1_color
 	half_2.pill_color = half_2_color
+
+	# --------------------------------------------------------
+	# DISSOLVER FLAG / OVERLAY
+	# --------------------------------------------------------
+
+	half_1.is_dissolver = is_dissolver_pill
+	half_2.is_dissolver = is_dissolver_pill
 
 
 	match orientation:

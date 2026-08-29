@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 Inventory="*res://scripts/items/inventory.gd"
+AnimClock="*res://scripts/global/anim_clock.gd"
 
 [display]
 

@@ -3,12 +3,14 @@
 [ext_resource type="Script" uid="uid://2qotxf1orxuv" path="res://scripts/pills/pill.gd" id="1_aqytg"]
 [ext_resource type="Texture2D" uid="uid://bciyqr4ckv1gv" path="res://art/pills/pills.png" id="1_cs156"]
 [ext_resource type="Script" uid="uid://cytcbd75pve0y" path="res://scripts/pills/pill_half.gd" id="2_vrjvl"]
-[ext_resource type="Texture2D" path="res://art/effects/pill_breaking.png" id="3_dmgovl"]
+[ext_resource type="Texture2D" uid="uid://beektqrbtdkxc" path="res://art/effects/pill_breaking.png" id="3_dmgovl"]
 
 [node name="Pill" type="Node2D"]
 texture_filter = 1
 script = ExtResource("1_aqytg")
 orientation = 3
+is_shift_pill = null
+is_dissolver_pill = null
 
 [node name="Half1" type="Node2D" parent="."]
 script = ExtResource("2_vrjvl")
@@ -22,10 +24,17 @@ region_enabled = true
 region_rect = Rect2(0, 8, 8, 8)
 
 [node name="DamageOverlay" type="Sprite2D" parent="Half1"]
+visible = false
 texture_filter = 1
 texture = ExtResource("3_dmgovl")
 centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 8, 8)
+
+[node name="DissolverOverlay" type="Sprite2D" parent="Half1"]
 visible = false
+texture_filter = 1
+centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 8, 8)
 
@@ -42,9 +51,16 @@ region_enabled = true
 region_rect = Rect2(16, 0, 8, 8)
 
 [node name="DamageOverlay" type="Sprite2D" parent="Half2"]
+visible = false
 texture_filter = 1
 texture = ExtResource("3_dmgovl")
 centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 8, 8)
+
+[node name="DissolverOverlay" type="Sprite2D" parent="Half2"]
 visible = false
+texture_filter = 1
+centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 8, 8)

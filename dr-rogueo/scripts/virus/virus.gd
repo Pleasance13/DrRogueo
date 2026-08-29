@@ -91,10 +91,14 @@ func take_hit() -> bool:
 # ============================================================
 # ANIMATION
 # ============================================================
+#
+# Frame comes from the shared AnimClock autoload (see
+# scripts/global/anim_clock.gd) so every idle-animating virus
+# on the board flips frames in perfect sync with each other
+# and with any Dissolver Pills on screen.
+#
+# ============================================================
 
-const ANIMATION_INTERVAL := 0.30
-
-var animation_timer := 0.0
 var animation_frame := 0
 
 
@@ -110,23 +114,26 @@ const SPRITE_SIZE := 8
 # ============================================================
 
 func _ready() -> void:
+
 	update_visual()
 
+	if not Engine.is_editor_hint():
 
-func _process(delta: float) -> void:
+		animation_frame = AnimClock.frame
+
+		if not AnimClock.frame_changed.is_connected(_on_anim_frame_changed):
+
+			AnimClock.frame_changed.connect(_on_anim_frame_changed)
+
+
+func _on_anim_frame_changed(frame: int) -> void:
 
 	if visual_state != VisualState.NORMAL:
 		return
 
-	animation_timer += delta
+	animation_frame = frame
 
-	if animation_timer >= ANIMATION_INTERVAL:
-
-		animation_timer -= ANIMATION_INTERVAL
-
-		animation_frame = 1 - animation_frame
-
-		update_visual()
+	update_visual()
 
 
 # ============================================================

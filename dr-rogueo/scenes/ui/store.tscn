@@ -1,4 +1,4 @@
-[gd_scene load_steps=36 format=3 uid="uid://dc1kkw0qxwj0y"]
+[gd_scene load_steps=37 format=3 uid="uid://dc1kkw0qxwj0y"]
 
 [ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_bh2q3"]
 [ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_e0lh1"]
@@ -16,6 +16,7 @@
 [ext_resource type="Texture2D" uid="uid://q2ad67x7uyyg" path="res://art/ui/toad-body.png" id="13_p55js"]
 [ext_resource type="Texture2D" uid="uid://gepav3cyhnrn" path="res://art/ui/toad-head-mouthclose.png" id="14_qvgk3"]
 [ext_resource type="Texture2D" uid="uid://b5u2bdbafkkvk" path="res://art/ui/toad-head-default.png" id="15_v17vb"]
+[ext_resource type="Script" uid="uid://bpia67jmgasqf" path="res://scenes/ui/toad.gd" id="16_1ef5v"]
 [ext_resource type="Texture2D" uid="uid://c3mx6kweocunx" path="res://art/ui/toad-head-blink.png" id="16_lp6vt"]
 [ext_resource type="Texture2D" uid="uid://cvl8ef4vbgtlw" path="res://art/ui/buy-button.png" id="17_qyicm"]
 [ext_resource type="Script" uid="uid://doyr6l3y6nk8q" path="res://scripts/ui/menu_selectable.gd" id="18_qvgk3"]
@@ -52,9 +53,9 @@ price_font = ExtResource("25_c56s1")
 price_font_size = 8
 price_position = Vector2(31, 18)
 price_alignment = 1
-debug_enabled = false
+debug_enabled = true
 debug_coins = 99
-debug_owned_slot_x = "TETHER PILL"
+debug_owned_slot_x = "Default"
 debug_owned_slot_y = "Default"
 debug_owned_slot_b = "Default"
 debug_store_slot_1 = "Default"
@@ -63,7 +64,7 @@ debug_store_slot_3 = "Default"
 debug_store_slot_4 = "Default"
 debug_store_slot_5 = "Default"
 debug_store_slot_6 = "Default"
-debug_next_stage = 3
+debug_next_stage = 2
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
 offset_right = 427.0
@@ -93,23 +94,24 @@ centered = false
 offset = Vector2(8, 21)
 
 [node name="Toad" type="Node2D" parent="."]
+script = ExtResource("16_1ef5v")
 
 [node name="Body" type="Sprite2D" parent="Toad"]
 texture = ExtResource("13_p55js")
 centered = false
 offset = Vector2(126, 44)
 
-[node name="Head" type="Sprite2D" parent="Toad/Body"]
+[node name="Head" type="Sprite2D" parent="Toad"]
 texture = ExtResource("14_qvgk3")
 centered = false
 offset = Vector2(126, 44)
 
-[node name="Talk" type="Sprite2D" parent="Toad/Body"]
+[node name="Talk" type="Sprite2D" parent="Toad"]
 texture = ExtResource("15_v17vb")
 centered = false
 offset = Vector2(126, 44)
 
-[node name="Blink" type="Sprite2D" parent="Toad/Body"]
+[node name="Blink" type="Sprite2D" parent="Toad"]
 visible = false
 position = Vector2(14, 33)
 texture = ExtResource("16_lp6vt")

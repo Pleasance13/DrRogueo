@@ -25,6 +25,9 @@ static func create_catalog() -> Array[Item]:
 		_create_tether(),
 		_create_pong(),
 		_create_shift(),
+		_create_dissolver(PillHalf.PillColor.RED),
+		_create_dissolver(PillHalf.PillColor.YELLOW),
+		_create_dissolver(PillHalf.PillColor.BLUE),
 	]
 
 
@@ -38,3 +41,7 @@ static func _create_pong() -> Item:
 
 static func _create_shift() -> Item:
 	return ItemShift.new()
+
+
+static func _create_dissolver(color: PillHalf.PillColor) -> Item:
+	return ItemDissolver.new(color)

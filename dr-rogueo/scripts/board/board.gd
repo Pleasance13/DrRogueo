@@ -1387,6 +1387,7 @@ func create_next_preview() -> void:
 
 	next_pill.is_tether_pill = false
 	next_pill.is_shift_pill = false
+	next_pill.is_dissolver_pill = false
 
 	randomize_pill_colors(next_pill)
 
@@ -2363,6 +2364,16 @@ func arm_next_pill_item(item: Item) -> bool:
 		next_pill.is_tether_pill = false
 		next_pill.is_shift_pill = true
 
+	elif item is ItemDissolver:
+
+		var dissolver_item := item as ItemDissolver
+
+		next_pill.is_tether_pill = false
+		next_pill.is_dissolver_pill = true
+
+		next_pill.half_1_color = dissolver_item.dissolver_color
+		next_pill.half_2_color = dissolver_item.dissolver_color
+
 	else:
 
 		next_pill.is_tether_pill = false
@@ -2426,6 +2437,7 @@ func clear_next_pill_item() -> void:
 
 		next_pill.is_tether_pill = false
 		next_pill.is_shift_pill = false
+		next_pill.is_dissolver_pill = false
 
 		next_pill.queue_redraw()
 
@@ -2761,7 +2773,8 @@ func _resolve_matches_and_gravity() -> bool:
 
 			return false
 
-
+		matches = _expand_matches_for_dissolvers(matches)
+		
 		separate_partners_of_matches(matches)
 
 
@@ -2860,6 +2873,105 @@ func _resolve_matches_and_gravity() -> bool:
 	# Godot requires an explicit return because this function
 	# is typed as -> bool.
 	return false
+
+
+# ============================================================
+# DISSOLVER PILL - GLOBAL SAME-COLOR CLEAR
+# ============================================================
+#
+# Called once per match-resolution pass, before partner
+# separation. If any matched cell holds a Dissolver half:
+#
+#   1. That half's linked partner is pulled into the match set
+#      too, even if it wasn't part of the original match, so
+#      the pair always clears together.
+#   2. Every OTHER pill half on the board sharing that color is
+#      also pulled into the match set.
+#
+# Viruses are deliberately excluded - only occupied_cells
+# (pill halves) are ever added here.
+#
+# ============================================================
+
+func _expand_matches_for_dissolvers(
+	matches: Array[Vector2i]
+) -> Array[Vector2i]:
+
+	var match_set: Dictionary = {}
+
+	for cell in matches:
+
+		match_set[cell] = true
+
+
+	var colors_to_clear: Dictionary = {}
+
+
+	for cell in matches:
+
+		var half: PillHalf = (
+			occupied_cells.get(cell)
+			as PillHalf
+		)
+
+		if half == null:
+			continue
+
+		if not half.is_dissolver:
+			continue
+
+
+		colors_to_clear[half.pill_color] = true
+
+
+		# ----------------------------------------------------
+		# Force the linked partner half into the same clear,
+		# even if it wasn't part of the original match.
+		# ----------------------------------------------------
+
+		if is_instance_valid(half.partner_half):
+
+			var partner_cell: Variant = find_half_cell(
+				half.partner_half
+			)
+
+			if partner_cell != null:
+
+				match_set[partner_cell] = true
+
+
+	if colors_to_clear.is_empty():
+
+		return matches
+
+
+	# --------------------------------------------------------
+	# GLOBAL SWEEP: every pill half of a triggered color.
+	# --------------------------------------------------------
+
+	for cell in occupied_cells.keys():
+
+		var half: PillHalf = (
+			occupied_cells[cell]
+			as PillHalf
+		)
+
+		if half == null:
+			continue
+
+		if colors_to_clear.has(half.pill_color):
+
+			match_set[cell] = true
+
+
+	var result: Array[Vector2i] = []
+
+	for cell in match_set.keys():
+
+		result.append(cell)
+
+
+	return result
 
 
 func _remove_tether(
