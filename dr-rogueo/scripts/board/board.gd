@@ -71,6 +71,21 @@ var level: int = 1
 
 @export var store_scene: PackedScene
 
+
+# ============================================================
+# TRAITS (DEBUG) TEMP
+# ============================================================
+#
+# TEMPORARY until trait buy/sell is wired into the store UI.
+# Check this to force-grant the Pacman trait at run start so
+# the wrap mechanic can be playtested now.
+# ============================================================
+
+@export_group("Traits (Debug)")
+
+@export var debug_force_pacman_trait := false
+
+
 # How many levels make up one stage. The store opens between
 # every stage, and the background preset only rerolls at the
 # start of a new stage (not every level).
@@ -170,6 +185,10 @@ var next_pill_item: Item = null
 
 var current_grid_position := Vector2i.ZERO
 
+# True while the current pill's two halves are rendered split
+# across the Pacman wrap boundary (see _apply_wrap_visual_offsets()).
+var _pill_is_wrap_split := false
+
 var fall_timer := 0.0
 var lock_timer := 0.0
 
@@ -231,6 +250,14 @@ func _ready() -> void:
 	$Items.set_board(self)
 
 	Inventory.reset()
+
+	TraitInventory.reset()
+
+	if debug_force_pacman_trait:
+
+		TraitInventory.add_trait(TraitPacman.new())
+
+	# Create the preview first.
 
 	# Create the preview first.
 	create_next_preview()
@@ -334,6 +361,8 @@ func _process(delta: float) -> void:
 
 	_handle_input()
 
+	if current_pill == null:
+		return
 
 	var can_fall := can_pill_occupy(
 		current_grid_position + Vector2i(0, 1)
@@ -631,6 +660,109 @@ func _process_game_over(delta: float) -> void:
 func return_to_title_screen() -> void:
 
 	get_tree().change_scene_to_file(TITLE_SCENE_PATH)
+
+
+# ============================================================
+# TRAITS
+# ============================================================
+
+func has_pacman_trait() -> bool:
+
+	return TraitInventory.has_trait("pacman")
+
+
+# ============================================================
+# PACMAN WRAP HELPERS
+# ============================================================
+
+func wrap_cell_if_needed(cell: Vector2i) -> Vector2i:
+
+	if not has_pacman_trait():
+		return cell
+
+	if cell.x >= 0 and cell.x < BOARD_WIDTH:
+		return cell
+
+	return Vector2i(
+		wrapi(cell.x, 0, BOARD_WIDTH),
+		cell.y
+	)
+
+
+func _apply_wrap_visual_offsets() -> void:
+
+	if current_pill == null:
+		return
+
+	if current_pill.is_tether_pill or current_pill.is_shift_pill:
+		return
+
+
+	var half_1_cell := current_pill.get_half_1_cell(
+		current_grid_position
+	)
+
+	var half_2_cell := current_pill.get_half_2_cell(
+		current_grid_position
+	)
+
+
+	var needs_wrap: bool = (
+		has_pacman_trait()
+		and (
+			half_1_cell.x < 0
+			or half_1_cell.x >= BOARD_WIDTH
+			or half_2_cell.x < 0
+			or half_2_cell.x >= BOARD_WIDTH
+		)
+	)
+
+
+	if not needs_wrap:
+
+		if _pill_is_wrap_split:
+
+			current_pill.reset_half_layout()
+
+			_pill_is_wrap_split = false
+
+		return
+
+
+	var half_1 := (
+		current_pill.get_node_or_null("Half1")
+		as Node2D
+	)
+
+	var half_2 := (
+		current_pill.get_node_or_null("Half2")
+		as Node2D
+	)
+
+	if half_1 == null or half_2 == null:
+		return
+
+
+	var wrapped_1_cell := wrap_cell_if_needed(half_1_cell)
+	var wrapped_2_cell := wrap_cell_if_needed(half_2_cell)
+
+
+	# Overriding local position this way is correct regardless
+	# of how "wrapped" current_pill.position itself conceptually
+	# is -- local = target_world - parent_world always resolves
+	# to the right on-screen spot.
+	half_1.position = (
+		grid_to_local(wrapped_1_cell)
+		- current_pill.position
+	)
+
+	half_2.position = (
+		grid_to_local(wrapped_2_cell)
+		- current_pill.position
+	)
+
+
+	_pill_is_wrap_split = true
 
 
 # ============================================================
@@ -1284,6 +1416,28 @@ func can_place_starting_virus(
 	color: PillHalf.PillColor
 ) -> bool:
 
+	# --------------------------------------------------------
+	# HARD RULE: never let starting virus placement create an
+	# in-bounds run of 4+ same-colored viruses, regardless of
+	# placement order and regardless of any active trait. This
+	# always used to be possible because the old check only
+	# compared the cell exactly 2 away, not the actual run
+	# length -- see _would_complete_virus_run() below.
+	# --------------------------------------------------------
+
+	if _would_complete_virus_run(cell, color, Vector2i(1, 0)):
+		return false
+
+	if _would_complete_virus_run(cell, color, Vector2i(0, 1)):
+		return false
+
+
+	# --------------------------------------------------------
+	# Existing "don't repeat a color too closely" spacing rule,
+	# kept on top of the hard run-length check above purely for
+	# starting-board variety.
+	# --------------------------------------------------------
+
 	var horizontal_check := cell + Vector2i(
 		-VIRUS_SAME_COLOR_DISTANCE,
 		0
@@ -1312,6 +1466,69 @@ func can_place_starting_virus(
 
 
 # ============================================================
+# VIRUS RUN-LENGTH CHECK
+# ============================================================
+#
+# Would placing `color` at `cell` create an in-bounds run of
+# 4+ same-colored viruses along `direction`? Checks both ways
+# along the axis (e.g. direction (1,0) checks the full
+# horizontal line through cell, not just one side).
+#
+# Deliberately bounded, never wrapped -- see can_place_starting_virus().
+# ============================================================
+
+func _would_complete_virus_run(
+	cell: Vector2i,
+	color: PillHalf.PillColor,
+	direction: Vector2i
+) -> bool:
+
+	var run_length := 1
+
+
+	var probe := cell - direction
+
+	while _virus_color_at(probe) == color:
+
+		run_length += 1
+
+		probe -= direction
+
+
+	probe = cell + direction
+
+	while _virus_color_at(probe) == color:
+
+		run_length += 1
+
+		probe += direction
+
+
+	return run_length >= 4
+
+
+func _virus_color_at(cell: Vector2i) -> Variant:
+
+	if cell.x < 0 or cell.x >= BOARD_WIDTH:
+		return null
+
+	if cell.y < 0 or cell.y >= BOARD_HEIGHT:
+		return null
+
+
+	if virus_cells.has(cell):
+
+		var virus := virus_cells[cell] as Virus
+
+		if virus != null:
+
+			return virus.virus_color
+
+
+	return null
+
+
+# ============================================================
 # VIRUS COUNT
 # ============================================================
 
@@ -1333,6 +1550,8 @@ func update_pill_position() -> void:
 	current_pill.position = grid_to_local(
 		current_grid_position
 	)
+
+	_apply_wrap_visual_offsets()
 
 
 # ============================================================
@@ -1771,6 +1990,46 @@ func get_color_at_cell(
 	return null
 
 
+# ============================================================
+# OCCUPANT LOOKUP
+# ============================================================
+#
+# Like get_color_at_cell(), but returns the actual occupying
+# object (PillHalf or Virus) rather than just its color. Used
+# by the Pacman-wrapped tether search to tell "two different
+# same-colored occupants" apart from "the same physical
+# occupant, found again after wrapping all the way around."
+# ============================================================
+
+func get_occupant_at_cell(
+	cell: Vector2i
+) -> Variant:
+
+	if occupied_cells.has(cell):
+
+		var half: PillHalf = (
+			occupied_cells[cell]
+			as PillHalf
+		)
+
+		if half != null:
+			return half
+
+
+	if virus_cells.has(cell):
+
+		var virus: Virus = (
+			virus_cells[cell]
+			as Virus
+		)
+
+		if virus != null:
+			return virus
+
+
+	return null
+
+
 func can_pill_occupy(
 	grid_position: Vector2i
 ) -> bool:
@@ -1786,13 +2045,37 @@ func can_pill_occupy(
 	var ghosting := current_pill.is_ghosting
 
 
+	# --------------------------------------------------------
+	# PACMAN WRAP
+	#
+	# Tether/Shift pills are excluded -- their deployment /
+	# shift-direction logic assumes a normal contiguous board
+	# and isn't wrap-aware yet.
+	# --------------------------------------------------------
+
+	var wrap_horizontal: bool = (
+		has_pacman_trait()
+		and not current_pill.is_tether_pill
+		and not current_pill.is_shift_pill
+	)
+
+
 	for cell in cells:
 
-		if cell.x < 0:
-			return false
+		var check_cell := cell
 
-		if cell.x >= BOARD_WIDTH:
-			return false
+
+		if cell.x < 0 or cell.x >= BOARD_WIDTH:
+
+			if not wrap_horizontal:
+				return false
+
+			check_cell.x = wrapi(
+				cell.x,
+				0,
+				BOARD_WIDTH
+			)
+
 
 		# No hard roof: cell.y can go negative (e.g. rotating a
 		# pill to vertical right at spawn, row 0) since nothing
@@ -1808,7 +2091,7 @@ func can_pill_occupy(
 			continue
 
 
-		if is_cell_filled(cell):
+		if is_cell_filled(check_cell):
 			return false
 
 
@@ -1988,6 +2271,28 @@ func deploy_tether(
 	)
 
 	# ========================================================
+	# SAME PHYSICAL OCCUPANT?
+	# ========================================================
+	#
+	# With Pacman wrap, both searches can walk all the way
+	# around the board and land on the SAME PillHalf/Virus.
+	# That's a valid closed-loop tether, not a "mismatch" --
+	# compare object identity, not just color/cell.
+	# ========================================================
+
+	var occupant_a: Variant = endpoint_a_data.get("occupant")
+
+	var occupant_b: Variant = endpoint_b_data.get("occupant")
+
+
+	var same_physical_occupant: bool = (
+		occupant_a != null
+		and occupant_b != null
+		and occupant_a == occupant_b
+	)
+
+
+	# ========================================================
 	# ENDPOINT COLORS
 	# ========================================================
 
@@ -2002,13 +2307,17 @@ func deploy_tether(
 
 
 	# A wall hit is always treated as a mismatch, even if the
-	# other side found a valid color.
+	# other side found a valid color -- UNLESS both ends
+	# resolved to the same physical occupant (closed loop).
 	var colors_match: bool = (
-		not endpoint_a_hit_wall
-		and not endpoint_b_hit_wall
-		and color_a != null
-		and color_b != null
-		and color_a == color_b
+		same_physical_occupant
+		or (
+			not endpoint_a_hit_wall
+			and not endpoint_b_hit_wall
+			and color_a != null
+			and color_b != null
+			and color_a == color_b
+		)
 	)
 
 
@@ -2033,7 +2342,31 @@ func deploy_tether(
 	var cells_to_create: Array[Vector2i] = []
 
 
-	if tether_orientation == Tether.Orientation.HORIZONTAL:
+	var wrap_horizontal: bool = (
+		tether_orientation == Tether.Orientation.HORIZONTAL
+		and has_pacman_trait()
+	)
+
+
+	if tether_orientation == Tether.Orientation.HORIZONTAL and wrap_horizontal:
+
+		var wrapped_result: Variant = _build_wrapped_tether_cells(
+			low_cell,
+			high_cell,
+			endpoint_a_cell,
+			endpoint_a_hit_wall,
+			endpoint_b_cell,
+			endpoint_b_hit_wall
+		)
+
+		if wrapped_result == null:
+
+			return false
+
+		cells_to_create = wrapped_result
+
+
+	elif tether_orientation == Tether.Orientation.HORIZONTAL:
 
 		var start_x := mini(
 			endpoint_a_cell.x,
@@ -2223,25 +2556,60 @@ func find_tether_endpoint(
 	direction: Vector2i
 ) -> Variant:
 
+	var wrap_horizontal: bool = (
+		direction.y == 0
+		and direction.x != 0
+		and has_pacman_trait()
+	)
+
+
+	# A wrapping horizontal search has no natural edge to stop
+	# at, so cap it at one full lap of the board. Non-wrapping
+	# searches are already bounded by the board's own size --
+	# this cap never actually triggers for them, it's just a
+	# safety net.
+	var max_steps := (
+		BOARD_WIDTH
+		if wrap_horizontal
+		else (BOARD_WIDTH + BOARD_HEIGHT)
+	)
+
+
 	var cell := start_cell + direction
 
+	var steps := 0
 
-	while (
-		cell.x >= 0
-		and cell.x < BOARD_WIDTH
-		and cell.y >= 0
-		and cell.y < BOARD_HEIGHT
-	):
+
+	while steps < max_steps:
+
+		steps += 1
+
+
+		var in_bounds := (
+			cell.x >= 0
+			and cell.x < BOARD_WIDTH
+			and cell.y >= 0
+			and cell.y < BOARD_HEIGHT
+		)
+
+
+		if not in_bounds:
+
+			if wrap_horizontal:
+
+				cell.x = wrapi(cell.x, 0, BOARD_WIDTH)
+
+			else:
+
+				break
+
 
 		# ----------------------------------------------------
 		# TOP BOARD EDGE
 		# ----------------------------------------------------
 		#
-		# Row 0 is treated as a wall endpoint rather than
-		# a tether cell.
-		#
-		# This lets the tether visually reach the top border
-		# while keeping row 0 free for the pill spawn.
+		# Row 0 is treated as a wall endpoint rather than a
+		# tether cell. Vertical-only search, never wrapped.
 		# ----------------------------------------------------
 
 		if (
@@ -2251,18 +2619,20 @@ func find_tether_endpoint(
 
 			return {
 				"cell": cell,
-				"hit_wall": true
+				"hit_wall": true,
+				"occupant": null
 			}
 
 
-		var color: Variant = get_color_at_cell(cell)
+		var occupant: Variant = get_occupant_at_cell(cell)
 
 
-		if color != null:
+		if occupant != null:
 
 			return {
 				"cell": cell,
-				"hit_wall": false
+				"hit_wall": false,
+				"occupant": occupant
 			}
 
 
@@ -2282,15 +2652,141 @@ func find_tether_endpoint(
 
 
 	# ========================================================
-	# RAN OFF THE BOARD EDGE
+	# RAN OFF THE BOARD EDGE / RAN OUT OF STEPS
 	# ========================================================
 
 	var wall_cell := cell - direction
 
 	return {
 		"cell": wall_cell,
-		"hit_wall": true
+		"hit_wall": true,
+		"occupant": null
 	}
+
+
+# ============================================================
+# WRAPPED TETHER BRIDGE
+# ============================================================
+#
+# Builds the tether's bridge cells when the search wrapped
+# around the board (Pacman trait + horizontal tether). Can't
+# use simple min()/max() here since "leftward" and "rightward"
+# no longer correspond to smaller/larger x -- each arm has to
+# be walked out explicitly, wrapping as it goes.
+#
+# If both arms converge on the SAME physical occupant (the
+# tether wrapped all the way around and met itself), each arm
+# naturally walks almost the entire board and stops just short
+# of that one shared occupant cell -- producing one continuous
+# closed loop rather than two separate half-bridges.
+# ============================================================
+
+func _build_wrapped_tether_cells(
+	low_cell: Vector2i,
+	high_cell: Vector2i,
+	endpoint_a_cell: Vector2i,
+	endpoint_a_hit_wall: bool,
+	endpoint_b_cell: Vector2i,
+	endpoint_b_hit_wall: bool
+) -> Variant:
+
+	var cells: Array[Vector2i] = []
+
+
+	var arm_a: Variant = _walk_wrapped_arm(
+		low_cell,
+		Vector2i(-1, 0),
+		endpoint_a_cell,
+		endpoint_a_hit_wall
+	)
+
+	if arm_a == null:
+		return null
+
+	var arm_a_cells: Array[Vector2i] = arm_a
+
+	arm_a_cells.reverse()
+
+	for cell in arm_a_cells:
+		cells.append(cell)
+
+
+	cells.append(low_cell)
+
+	if high_cell != low_cell:
+		cells.append(high_cell)
+
+
+	var arm_b: Variant = _walk_wrapped_arm(
+		high_cell,
+		Vector2i(1, 0),
+		endpoint_b_cell,
+		endpoint_b_hit_wall
+	)
+
+	if arm_b == null:
+		return null
+
+	var arm_b_cells: Array[Vector2i] = arm_b
+
+	for cell in arm_b_cells:
+		cells.append(cell)
+
+
+	return cells
+
+
+func _walk_wrapped_arm(
+	from_cell: Vector2i,
+	step: Vector2i,
+	endpoint_cell: Vector2i,
+	endpoint_hit_wall: bool
+) -> Variant:
+
+	var cells: Array[Vector2i] = []
+
+
+	var cell := Vector2i(
+		wrapi(from_cell.x + step.x, 0, BOARD_WIDTH),
+		from_cell.y
+	)
+
+
+	var steps := 0
+
+
+	while steps < BOARD_WIDTH:
+
+		steps += 1
+
+
+		if cell == endpoint_cell:
+
+			if endpoint_hit_wall:
+
+				cells.append(cell)
+
+			return cells
+
+
+		if is_cell_filled(cell):
+
+			# Something unexpectedly blocks this arm -- the
+			# endpoint search should have caught this already,
+			# but bail out safely if it didn't.
+			return null
+
+
+		cells.append(cell)
+
+
+		cell = Vector2i(
+			wrapi(cell.x + step.x, 0, BOARD_WIDTH),
+			cell.y
+		)
+
+
+	return null
 
 
 # ============================================================
@@ -2716,6 +3212,12 @@ func _try_rotate(
 
 	current_pill.orientation = old_orientation
 
+	# current_grid_position didn't change here, so if the pill
+	# was wrap-split before this rotation attempt, it still is --
+	# restore that visual (Pill's own orientation setter just
+	# reset Half1/Half2 to a non-wrapped layout above).
+	_apply_wrap_visual_offsets()
+
 	return false
 
 
@@ -2839,6 +3341,14 @@ func settle_current_pill() -> void:
 			current_grid_position
 		)
 	)
+
+
+	# Settling can happen while the pill is straddling the
+	# Pacman wrap boundary -- normalize both cells to their
+	# real on-board columns before they're used as dictionary
+	# keys or drawn.
+	half_1_cell = wrap_cell_if_needed(half_1_cell)
+	half_2_cell = wrap_cell_if_needed(half_2_cell)
 
 
 	half_1.reparent(self, true)
@@ -3548,15 +4058,58 @@ func find_line_match(
 	var traversed_tethers: Array[Vector2i] = []
 
 
+	# --------------------------------------------------------
+	# PACMAN WRAP
+	#
+	# Only horizontal scans wrap, and only while the trait is
+	# owned. Vertical scans never wrap (no ceiling/floor loop).
+	# --------------------------------------------------------
+
+	var wrap_horizontal: bool = (
+		direction.y == 0
+		and direction.x != 0
+		and has_pacman_trait()
+	)
+
+
+	# A wrapping horizontal line has no natural edge to stop
+	# at, so cap the scan at one full lap of the board to avoid
+	# looping forever when an entire row shares a color.
+	var max_steps := (
+		BOARD_WIDTH
+		if wrap_horizontal
+		else (BOARD_WIDTH + BOARD_HEIGHT)
+	)
+
+
 	var cell := start_cell
 
+	var steps := 0
 
-	while (
-		cell.x >= 0
-		and cell.x < BOARD_WIDTH
-		and cell.y >= 0
-		and cell.y < BOARD_HEIGHT
-	):
+
+	while steps < max_steps:
+
+		steps += 1
+
+
+		var in_bounds := (
+			cell.x >= 0
+			and cell.x < BOARD_WIDTH
+			and cell.y >= 0
+			and cell.y < BOARD_HEIGHT
+		)
+
+
+		if not in_bounds:
+
+			if wrap_horizontal:
+
+				cell.x = wrapi(cell.x, 0, BOARD_WIDTH)
+
+			else:
+
+				break
+
 
 		var found_color : Variant = get_color_at_cell(cell)
 

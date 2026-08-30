@@ -23,7 +23,7 @@ func _init() -> void:
 
 	rarity = Item.Rarity.EPIC
 
-	cost = 50
+	cost = 00
 
 	sell_price = 25
 

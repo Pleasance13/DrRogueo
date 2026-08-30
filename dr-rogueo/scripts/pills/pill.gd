@@ -500,6 +500,23 @@ func _update_pill() -> void:
 
 
 # ============================================================
+# WRAP LAYOUT RESET
+# ============================================================
+#
+# Called by Board when a Pacman-wrapped pill straddling the
+# board edges moves back to a normal, non-wrapped position.
+# Restores Half1/Half2 to their standard orientation-based
+# layout, undoing any manual position override Board applied
+# for the wrap-split visual (see
+# DrRogueoBoard._apply_wrap_visual_offsets()).
+# ============================================================
+
+func reset_half_layout() -> void:
+
+	_update_pill()
+
+
+# ============================================================
 # GHOST VISUAL
 # ============================================================
 
