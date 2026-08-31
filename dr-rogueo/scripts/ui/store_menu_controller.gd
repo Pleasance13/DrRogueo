@@ -18,6 +18,8 @@ class_name StoreMenuController
 
 @export var store_item_paths: Array[NodePath] = []
 
+@export var store_trait_paths: Array[NodePath] = []
+
 
 # ============================================================
 # BUY / SELL BUTTON
@@ -48,6 +50,18 @@ signal sell_completed(
 	owned_slot: int
 )
 
+signal trait_purchase_started(trait_item: Trait)
+
+signal trait_purchase_completed(
+	trait_item: Trait,
+	owned_slot: int
+)
+
+signal trait_sell_completed(
+	trait_item: Trait,
+	owned_slot: int
+)
+
 
 # ============================================================
 # MENU REFERENCES
@@ -58,6 +72,7 @@ var current: MenuSelectable
 var owned_item_slots: Array[MenuSelectable] = []
 var owned_trait_slots: Array[MenuSelectable] = []
 var store_item_slots: Array[MenuSelectable] = []
+var store_trait_slots: Array[MenuSelectable] = []
 
 var continue_button: MenuSelectable
 var buy_button: MenuSelectable
@@ -76,6 +91,13 @@ var store: StoreController
 # ============================================================
 # TRANSACTION STATE
 # ============================================================
+#
+# TransactionMode tracks WHICH STEP of a buy/sell is active.
+# TransactionKind tracks WHETHER that step applies to an Item
+# or a Trait. Splitting it this way avoids needing four
+# separate transaction states.
+#
+# ============================================================
 
 enum TransactionMode {
 	NONE,
@@ -83,19 +105,23 @@ enum TransactionMode {
 	SELL_CONFIRM
 }
 
+enum TransactionKind {
+	ITEM,
+	TRAIT
+}
+
 var transaction_mode := TransactionMode.NONE
+var transaction_kind: TransactionKind = TransactionKind.ITEM
 
 var purchased_item: Item = null
-
 var selected_owned_slot := -1
-
-# Remembers which store item was selected when a purchase began.
-# This lets B return to that exact store slot.
 var purchase_store_slot := -1
-
-# Remembers which owned slot was selected when selling began.
-# This lets B return to that exact owned item.
 var sell_owned_slot := -1
+
+var purchased_trait: Trait = null
+var selected_owned_trait_slot := -1
+var purchase_trait_store_slot := -1
+var sell_owned_trait_slot := -1
 
 
 # ============================================================
@@ -150,6 +176,17 @@ func _ready() -> void:
 		if slot:
 
 			store_item_slots.append(slot)
+
+
+	for path in store_trait_paths:
+
+		var slot := get_node_or_null(
+			path
+		) as MenuSelectable
+
+		if slot:
+
+			store_trait_slots.append(slot)
 
 
 	if owned_item_slots.size() > 0:
@@ -238,34 +275,101 @@ func _handle_cancel() -> void:
 
 
 	# --------------------------------------------------------
-	# BUY PLACEMENT
+	# STORE SELECTION NOT YET CONFIRMED AS A PURCHASE
 	#
-	# B cancels the placement and returns to the store item
-	# that was purchased.
+	# The player picked an item/trait off the shelf (which
+	# moves focus to the BUY/SELL button) but hasn't pressed
+	# Accept on THAT yet to actually buy it. Cancelling here
+	# just returns focus to the exact store slot -- no coins
+	# spent, no stock touched, nothing to roll back.
 	# --------------------------------------------------------
 
-	if transaction_mode == TransactionMode.BUY_PLACEMENT:
+	if (
+		transaction_mode == TransactionMode.NONE
+		and current == buy_button
+	):
 
-		_cancel_purchase()
+		_cancel_store_selection()
 
 		return
 
 
-	# --------------------------------------------------------
-	# SELL CONFIRM
-	#
-	# B cancels selling and returns to the owned item.
-	# --------------------------------------------------------
+	if transaction_mode == TransactionMode.BUY_PLACEMENT:
+
+		if transaction_kind == TransactionKind.ITEM:
+
+			_cancel_purchase()
+
+		else:
+
+			_cancel_trait_purchase()
+
+		return
+
 
 	if transaction_mode == TransactionMode.SELL_CONFIRM:
 
-		_cancel_sell()
+		if transaction_kind == TransactionKind.ITEM:
+
+			_cancel_sell()
+
+		else:
+
+			_cancel_trait_sell()
 
 		return
 
 
 # ============================================================
-# CANCEL PURCHASE
+# CANCEL STORE SELECTION (PRE-PURCHASE)
+# ============================================================
+
+func _cancel_store_selection() -> void:
+
+	if transaction_kind == TransactionKind.TRAIT:
+
+		if (
+			store != null
+			and store.last_selected_trait_slot >= 0
+			and store.last_selected_trait_slot < store_trait_slots.size()
+		):
+
+			_select(
+				store_trait_slots[
+					store.last_selected_trait_slot
+				]
+			)
+
+		elif store_trait_slots.size() > 0:
+
+			_select(
+				store_trait_slots[0]
+			)
+
+		return
+
+
+	if (
+		store != null
+		and store.last_selected_slot >= 0
+		and store.last_selected_slot < store_item_slots.size()
+	):
+
+		_select(
+			store_item_slots[
+				store.last_selected_slot
+			]
+		)
+
+	elif store_item_slots.size() > 0:
+
+		_select(
+			store_item_slots[0]
+		)
+
+
+# ============================================================
+# CANCEL PURCHASE (ITEM)
 # ============================================================
 
 func _cancel_purchase() -> void:
@@ -277,7 +381,11 @@ func _cancel_purchase() -> void:
 	selected_owned_slot = -1
 
 
-	# Return to the exact store item that was purchased.
+	if store != null:
+
+		store.hide_purchase_preview()
+
+
 	if (
 		purchase_store_slot >= 0
 		and purchase_store_slot < store_item_slots.size()
@@ -300,7 +408,46 @@ func _cancel_purchase() -> void:
 
 
 # ============================================================
-# CANCEL SELL
+# CANCEL PURCHASE (TRAIT)
+# ============================================================
+
+func _cancel_trait_purchase() -> void:
+
+	transaction_mode = TransactionMode.NONE
+
+	purchased_trait = null
+
+	selected_owned_trait_slot = -1
+
+
+	if store != null:
+
+		store.hide_trait_purchase_preview()
+
+
+	if (
+		purchase_trait_store_slot >= 0
+		and purchase_trait_store_slot < store_trait_slots.size()
+	):
+
+		_select(
+			store_trait_slots[
+				purchase_trait_store_slot
+			]
+		)
+
+	elif store_trait_slots.size() > 0:
+
+		_select(
+			store_trait_slots[0]
+		)
+
+
+	purchase_trait_store_slot = -1
+
+
+# ============================================================
+# CANCEL SELL (ITEM)
 # ============================================================
 
 func _cancel_sell() -> void:
@@ -312,7 +459,6 @@ func _cancel_sell() -> void:
 	purchased_item = null
 
 
-	# Return to the exact owned slot that was selected.
 	if (
 		sell_owned_slot >= 0
 		and sell_owned_slot < owned_item_slots.size()
@@ -335,6 +481,40 @@ func _cancel_sell() -> void:
 
 
 # ============================================================
+# CANCEL SELL (TRAIT)
+# ============================================================
+
+func _cancel_trait_sell() -> void:
+
+	transaction_mode = TransactionMode.NONE
+
+	selected_owned_trait_slot = -1
+
+	purchased_trait = null
+
+
+	if (
+		sell_owned_trait_slot >= 0
+		and sell_owned_trait_slot < owned_trait_slots.size()
+	):
+
+		_select(
+			owned_trait_slots[
+				sell_owned_trait_slot
+			]
+		)
+
+	elif owned_trait_slots.size() > 0:
+
+		_select(
+			owned_trait_slots[0]
+		)
+
+
+	sell_owned_trait_slot = -1
+
+
+# ============================================================
 # ACCEPT
 # ============================================================
 
@@ -350,25 +530,36 @@ func _handle_accept() -> void:
 
 	if transaction_mode == TransactionMode.BUY_PLACEMENT:
 
-		if current in owned_item_slots:
+		if transaction_kind == TransactionKind.ITEM:
 
-			_equip_purchased_item(current)
+			if current in owned_item_slots:
+
+				_equip_purchased_item(current)
+
+		else:
+
+			if current in owned_trait_slots:
+
+				_equip_purchased_trait(current)
 
 		return
 
 
 	# --------------------------------------------------------
 	# SELL CONFIRM
-	#
-	# The only selectable thing during this state is the
-	# BUY/SELL button.
 	# --------------------------------------------------------
 
 	if transaction_mode == TransactionMode.SELL_CONFIRM:
 
 		if current == buy_button:
 
-			_confirm_sell()
+			if transaction_kind == TransactionKind.ITEM:
+
+				_confirm_sell()
+
+			else:
+
+				_confirm_trait_sell()
 
 		return
 
@@ -391,6 +582,28 @@ func _handle_accept() -> void:
 	if current in owned_item_slots:
 
 		_try_select_owned_item(current)
+
+		return
+
+
+	# --------------------------------------------------------
+	# STORE TRAIT
+	# --------------------------------------------------------
+
+	if current in store_trait_slots:
+
+		_try_select_store_trait(current)
+
+		return
+
+
+	# --------------------------------------------------------
+	# OWNED TRAIT
+	# --------------------------------------------------------
+
+	if current in owned_trait_slots:
+
+		_try_select_owned_trait(current)
 
 		return
 
@@ -430,22 +643,35 @@ func _move(
 	# --------------------------------------------------------
 	# BUY PLACEMENT
 	#
-	# Only empty owned item slots are valid destinations.
+	# Only empty owned slots (item or trait, depending on
+	# transaction_kind) are valid destinations.
 	# --------------------------------------------------------
 
 	if transaction_mode == TransactionMode.BUY_PLACEMENT:
+
+		var owned_slots := (
+			owned_item_slots
+			if transaction_kind == TransactionKind.ITEM
+			else owned_trait_slots
+		)
 
 		var next_owned := current.get_neighbor(
 			dir
 		) as MenuSelectable
 
-		if next_owned and next_owned in owned_item_slots:
+		if next_owned and next_owned in owned_slots:
 
-			var index := owned_item_slots.find(
+			var index := owned_slots.find(
 				next_owned
 			)
 
-			if _is_owned_slot_empty(index):
+			var slot_empty := (
+				_is_owned_slot_empty(index)
+				if transaction_kind == TransactionKind.ITEM
+				else _is_owned_trait_slot_empty(index)
+			)
+
+			if slot_empty:
 
 				_select(next_owned)
 
@@ -527,23 +753,33 @@ func _select(
 	# --------------------------------------------------------
 	# BUY PLACEMENT
 	#
-	# Only empty owned item slots are legal.
+	# Only empty owned slots of the matching kind are legal.
 	# --------------------------------------------------------
 
 	if transaction_mode == TransactionMode.BUY_PLACEMENT:
 
-		if next not in owned_item_slots:
+		var owned_slots := (
+			owned_item_slots
+			if transaction_kind == TransactionKind.ITEM
+			else owned_trait_slots
+		)
+
+		if next not in owned_slots:
 			return
 
 
-		var owned_index := owned_item_slots.find(
+		var owned_index := owned_slots.find(
 			next
 		)
 
 
-		if not _is_owned_slot_empty(
-			owned_index
-		):
+		var slot_empty := (
+			_is_owned_slot_empty(owned_index)
+			if transaction_kind == TransactionKind.ITEM
+			else _is_owned_trait_slot_empty(owned_index)
+		)
+
+		if not slot_empty:
 
 			return
 
@@ -571,6 +807,11 @@ func _select(
 			selected_owned_slot = -1
 
 
+		if next not in owned_trait_slots:
+
+			selected_owned_trait_slot = -1
+
+
 	current = next
 
 
@@ -591,7 +832,7 @@ func _select(
 
 
 # ============================================================
-# CHECK OWNED SLOT
+# CHECK OWNED SLOT (ITEM)
 # ============================================================
 
 func _is_owned_slot_empty(
@@ -611,6 +852,29 @@ func _is_owned_slot_empty(
 
 
 	return Inventory.items[index] == null
+
+
+# ============================================================
+# CHECK OWNED SLOT (TRAIT)
+# ============================================================
+
+func _is_owned_trait_slot_empty(
+	index: int
+) -> bool:
+
+	if index < 0:
+		return false
+
+
+	if index >= TraitInventory.MAX_TRAITS:
+		return false
+
+
+	if index >= TraitInventory.traits.size():
+		return true
+
+
+	return TraitInventory.traits[index] == null
 
 
 # ============================================================
@@ -700,6 +964,34 @@ func setup_store(
 	)
 
 
+	if not store.trait_selected.is_connected(
+		_on_store_trait_selected
+	):
+
+		store.trait_selected.connect(
+			_on_store_trait_selected
+	)
+
+
+# ============================================================
+# RESET TRANSACTION STATE
+# ============================================================
+
+func _reset_transaction_state() -> void:
+
+	transaction_mode = TransactionMode.NONE
+
+	purchased_item = null
+	selected_owned_slot = -1
+	purchase_store_slot = -1
+	sell_owned_slot = -1
+
+	purchased_trait = null
+	selected_owned_trait_slot = -1
+	purchase_trait_store_slot = -1
+	sell_owned_trait_slot = -1
+
+
 # ============================================================
 # STORE ITEM
 # ============================================================
@@ -731,11 +1023,47 @@ func _on_store_item_selected(
 		return
 
 
-	transaction_mode = TransactionMode.NONE
-	purchased_item = null
-	selected_owned_slot = -1
-	purchase_store_slot = -1
-	sell_owned_slot = -1
+	_reset_transaction_state()
+
+	transaction_kind = TransactionKind.ITEM
+
+	_select_transaction_button()
+
+
+# ============================================================
+# STORE TRAIT
+# ============================================================
+
+func _try_select_store_trait(
+	slot: MenuSelectable
+) -> void:
+
+	if store == null:
+		return
+
+
+	var index: int = store_trait_slots.find(
+		slot
+	)
+
+	if index < 0:
+		return
+
+
+	store.select_trait_slot(index)
+
+
+func _on_store_trait_selected(
+	trait_item: Trait
+) -> void:
+
+	if trait_item == null:
+		return
+
+
+	_reset_transaction_state()
+
+	transaction_kind = TransactionKind.TRAIT
 
 	_select_transaction_button()
 
@@ -770,21 +1098,63 @@ func _try_select_owned_item(
 		return
 
 
-	# --------------------------------------------------------
-	# THIS IS NOW A DISTINCT SELL CONFIRM STATE.
-	# --------------------------------------------------------
+	selected_owned_trait_slot = -1
 
 	selected_owned_slot = index
 
 	sell_owned_slot = index
 
 	transaction_mode = TransactionMode.SELL_CONFIRM
+	transaction_kind = TransactionKind.ITEM
 
 	purchased_item = null
 
 
-	# Selecting an owned item moves to SELL.
-	# It does NOT sell yet.
+	_select_transaction_button()
+
+
+# ============================================================
+# OWNED TRAIT
+# ============================================================
+
+func _try_select_owned_trait(
+	slot: MenuSelectable
+) -> void:
+
+	if store == null:
+		return
+
+
+	var index: int = owned_trait_slots.find(
+		slot
+	)
+
+	if index < 0:
+		return
+
+
+	if index >= TraitInventory.traits.size():
+		return
+
+
+	var trait_item := TraitInventory.traits[index]
+
+	if trait_item == null:
+		return
+
+
+	selected_owned_slot = -1
+
+	selected_owned_trait_slot = index
+
+	sell_owned_trait_slot = index
+
+	transaction_mode = TransactionMode.SELL_CONFIRM
+	transaction_kind = TransactionKind.TRAIT
+
+	purchased_trait = null
+
+
 	_select_transaction_button()
 
 
@@ -801,11 +1171,25 @@ func _try_buy_or_sell() -> void:
 		return
 
 
+	if selected_owned_trait_slot >= 0:
+
+		_confirm_trait_sell()
+
+		return
+
+
+	if transaction_kind == TransactionKind.TRAIT:
+
+		_try_buy_trait()
+
+		return
+
+
 	_try_buy()
 
 
 # ============================================================
-# BUY
+# BUY (ITEM)
 # ============================================================
 
 func _try_buy() -> void:
@@ -841,6 +1225,7 @@ func _try_buy() -> void:
 	purchased_item = purchased
 
 	transaction_mode = TransactionMode.BUY_PLACEMENT
+	transaction_kind = TransactionKind.ITEM
 
 	selected_owned_slot = -1
 
@@ -856,7 +1241,57 @@ func _try_buy() -> void:
 
 
 # ============================================================
-# FIRST EMPTY OWNED SLOT
+# BUY (TRAIT)
+# ============================================================
+
+func _try_buy_trait() -> void:
+
+	if store == null:
+		return
+
+
+	var trait_item := _get_selected_store_trait()
+
+	if trait_item == null:
+		return
+
+
+	if store.get_coins() < trait_item.cost:
+		return
+
+
+	var target := _first_empty_owned_trait_slot()
+
+	if target == null:
+		return
+
+
+	var purchased := store.buy_selected_trait()
+
+	if purchased == null:
+		return
+
+
+	purchased_trait = purchased
+
+	transaction_mode = TransactionMode.BUY_PLACEMENT
+	transaction_kind = TransactionKind.TRAIT
+
+	selected_owned_trait_slot = -1
+
+	purchase_trait_store_slot = store.last_selected_trait_slot
+
+
+	trait_purchase_started.emit(
+		purchased
+	)
+
+
+	_select(target)
+
+
+# ============================================================
+# FIRST EMPTY OWNED SLOT (ITEM)
 # ============================================================
 
 func _first_empty_owned_slot() -> MenuSelectable:
@@ -878,7 +1313,29 @@ func _first_empty_owned_slot() -> MenuSelectable:
 
 
 # ============================================================
-# COMPLETE PURCHASE
+# FIRST EMPTY OWNED SLOT (TRAIT)
+# ============================================================
+
+func _first_empty_owned_trait_slot() -> MenuSelectable:
+
+	var count: int = min(
+		owned_trait_slots.size(),
+		TraitInventory.MAX_TRAITS
+	)
+
+
+	for i in count:
+
+		if _is_owned_trait_slot_empty(i):
+
+			return owned_trait_slots[i]
+
+
+	return null
+
+
+# ============================================================
+# COMPLETE PURCHASE (ITEM)
 # ============================================================
 
 func _equip_purchased_item(
@@ -963,7 +1420,90 @@ func _equip_purchased_item(
 
 
 # ============================================================
-# SELL
+# COMPLETE PURCHASE (TRAIT)
+# ============================================================
+
+func _equip_purchased_trait(
+	slot: MenuSelectable
+) -> void:
+
+	if purchased_trait == null:
+		return
+
+
+	if store == null:
+		return
+
+
+	var index: int = owned_trait_slots.find(
+		slot
+	)
+
+	if index < 0:
+		return
+
+
+	if index >= TraitInventory.MAX_TRAITS:
+		return
+
+
+	if index >= TraitInventory.traits.size():
+		return
+
+
+	if TraitInventory.traits[index] != null:
+		return
+
+
+	var trait_item := purchased_trait
+
+
+	if not TraitInventory.add_trait_to_slot(
+		trait_item,
+		index
+	):
+
+		return
+
+
+	store.complete_trait_purchase(
+		trait_item,
+		purchase_trait_store_slot
+	)
+
+
+	trait_purchase_completed.emit(
+		trait_item,
+		index
+	)
+
+
+	purchased_trait = null
+	transaction_mode = TransactionMode.NONE
+	selected_owned_trait_slot = -1
+	purchase_trait_store_slot = -1
+
+
+	if (
+		store.last_selected_trait_slot >= 0
+		and store.last_selected_trait_slot < store_trait_slots.size()
+	):
+
+		_select(
+			store_trait_slots[
+				store.last_selected_trait_slot
+			]
+		)
+
+	elif store_trait_slots.size() > 0:
+
+		_select(
+			store_trait_slots[0]
+		)
+
+
+# ============================================================
+# SELL (ITEM)
 # ============================================================
 
 func _confirm_sell() -> void:
@@ -988,8 +1528,6 @@ func _confirm_sell() -> void:
 		return
 
 
-	# StoreController handles both real-board and standalone
-	# debug coins.
 	if not store.sell_item(slot):
 		return
 
@@ -1006,11 +1544,59 @@ func _confirm_sell() -> void:
 	purchased_item = null
 
 
-	# Keep selection on the slot that was just emptied.
 	if slot < owned_item_slots.size():
 
 		_select(
 			owned_item_slots[slot]
+		)
+
+
+# ============================================================
+# SELL (TRAIT)
+# ============================================================
+
+func _confirm_trait_sell() -> void:
+
+	if store == null:
+		return
+
+
+	if selected_owned_trait_slot < 0:
+		return
+
+
+	if selected_owned_trait_slot >= TraitInventory.traits.size():
+		return
+
+
+	var slot: int = selected_owned_trait_slot
+
+	var trait_item := TraitInventory.traits[slot]
+
+	if trait_item == null:
+		return
+
+
+	if not store.sell_trait(slot):
+		return
+
+
+	trait_sell_completed.emit(
+		trait_item,
+		slot
+	)
+
+
+	selected_owned_trait_slot = -1
+	sell_owned_trait_slot = -1
+	transaction_mode = TransactionMode.NONE
+	purchased_trait = null
+
+
+	if slot < owned_trait_slots.size():
+
+		_select(
+			owned_trait_slots[slot]
 		)
 
 
@@ -1038,6 +1624,29 @@ func _get_selected_store_item() -> Item:
 
 
 # ============================================================
+# GET SELECTED STORE TRAIT
+# ============================================================
+
+func _get_selected_store_trait() -> Trait:
+
+	if store == null:
+		return null
+
+
+	if store.last_selected_trait_slot < 0:
+		return null
+
+
+	if store.last_selected_trait_slot >= store.store_traits.size():
+		return null
+
+
+	return store.store_traits[
+		store.last_selected_trait_slot
+	]
+
+
+# ============================================================
 # BUTTON VISUAL
 # ============================================================
 
@@ -1059,7 +1668,7 @@ func _update_button_visual() -> void:
 	# SELL
 	# --------------------------------------------------------
 
-	if selected_owned_slot >= 0:
+	if selected_owned_slot >= 0 or selected_owned_trait_slot >= 0:
 
 		column = 1
 		row = 1
@@ -1071,11 +1680,27 @@ func _update_button_visual() -> void:
 
 	else:
 
-		var item := _get_selected_store_item()
+		if transaction_kind == TransactionKind.TRAIT:
 
-		if item != null:
+			var trait_item := _get_selected_store_trait()
 
-			if store != null:
+			if trait_item != null and store != null:
+
+				if store.get_coins() >= trait_item.cost:
+
+					column = 0
+					row = 1
+
+				else:
+
+					column = 0
+					row = 0
+
+		else:
+
+			var item := _get_selected_store_item()
+
+			if item != null and store != null:
 
 				if store.get_coins() >= item.cost:
 
@@ -1112,7 +1737,7 @@ func _show_pressed_button() -> void:
 	var row: int = 2
 
 
-	if selected_owned_slot >= 0:
+	if selected_owned_slot >= 0 or selected_owned_trait_slot >= 0:
 
 		column = 1
 		row = 2

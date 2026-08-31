@@ -12,9 +12,19 @@ extends RefCounted
 
 static func create_catalog() -> Array[Trait]:
 	return [
-		_create_pacman()
+		_create_pacman(),
+		_create_branch(),
+		_create_tetris()
 	]
 
 
 static func _create_pacman() -> Trait:
 	return TraitPacman.new()
+
+
+static func _create_branch() -> Trait:
+	return TraitBranch.new()
+
+
+static func _create_tetris() -> Trait:
+	return TraitTetris.new()

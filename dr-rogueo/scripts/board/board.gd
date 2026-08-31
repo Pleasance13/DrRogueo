@@ -85,6 +85,10 @@ var level: int = 1
 
 @export var debug_force_pacman_trait := false
 
+@export var debug_force_branch_trait := false
+
+@export var debug_force_tetris_trait := false
+
 
 # How many levels make up one stage. The store opens between
 # every stage, and the background preset only rerolls at the
@@ -256,6 +260,14 @@ func _ready() -> void:
 	if debug_force_pacman_trait:
 
 		TraitInventory.add_trait(TraitPacman.new())
+
+	if debug_force_branch_trait:
+
+		TraitInventory.add_trait(TraitBranch.new())
+
+	if debug_force_tetris_trait:
+
+		TraitInventory.add_trait(TraitTetris.new())
 
 	# Create the preview first.
 
@@ -669,6 +681,16 @@ func return_to_title_screen() -> void:
 func has_pacman_trait() -> bool:
 
 	return TraitInventory.has_trait("pacman")
+
+
+func has_branch_trait() -> bool:
+
+	return TraitInventory.has_trait("branch")
+
+
+func has_tetris_trait() -> bool:
+
+	return TraitInventory.has_trait("tetris")
 
 
 # ============================================================
@@ -1283,12 +1305,53 @@ func place_virus(
 # STARTING VIRUSES
 # ============================================================
 
-const VIRUS_LEVEL_CAP := 20
 
-const VIRUS_MIN_ROW := 8
+const VIRUS_LEVEL_CAP := 20
+const VIRUS_SAME_COLOR_DISTANCE := 2
+
 const VIRUS_MAX_ROW := BOARD_HEIGHT - 1
 
-const VIRUS_SAME_COLOR_DISTANCE := 2
+
+# ============================================================
+# VIRUS SPAWN HEIGHT TIERS
+# ============================================================
+#
+# Matches the NES Dr. Mario virus-height curve:
+# https://winslowjosiah.com/blog/2024/06/28/how-dr-mario-nes-creates-its-levels/
+#
+# Expressed as "rows left empty at the very top of the board"
+# rather than "rows from the bottom" -- that number is
+# independent of total board height, so it translates directly
+# even though our bottle isn't exactly the same row count as
+# the NES reference.
+#
+#   Levels  1-14 -> 6 free rows at top (virus zone starts at row 6)
+#   Levels 15-16 -> 5 free rows at top (row 5)
+#   Levels 17-18 -> 4 free rows at top (row 4)
+#   Levels 19+   -> 3 free rows at top (row 3)
+# ============================================================
+
+const VIRUS_MIN_ROW_LOW_LEVEL := 6
+const VIRUS_MIN_ROW_MID_LEVEL := 5
+const VIRUS_MIN_ROW_HIGH_LEVEL := 4
+const VIRUS_MIN_ROW_MAX_LEVEL := 3
+
+
+func get_virus_min_row() -> int:
+
+	if level >= 19:
+
+		return VIRUS_MIN_ROW_MAX_LEVEL
+
+	if level >= 17:
+
+		return VIRUS_MIN_ROW_HIGH_LEVEL
+
+	if level >= 15:
+
+		return VIRUS_MIN_ROW_MID_LEVEL
+
+	return VIRUS_MIN_ROW_LOW_LEVEL
 
 
 func get_starting_virus_count() -> int:
@@ -1318,6 +1381,8 @@ func generate_starting_viruses() -> void:
 
 	var virus_count := get_starting_virus_count()
 
+	var virus_min_row := get_virus_min_row()
+
 	var attempts := 0
 
 	var max_attempts := virus_count * 100
@@ -1342,7 +1407,7 @@ func generate_starting_viruses() -> void:
 				BOARD_WIDTH - 1
 			),
 			rng.randi_range(
-				VIRUS_MIN_ROW,
+				virus_min_row,
 				VIRUS_MAX_ROW
 			)
 		)
@@ -1456,7 +1521,7 @@ func can_place_starting_virus(
 	)
 
 
-	if vertical_check.y >= VIRUS_MIN_ROW:
+	if vertical_check.y >= get_virus_min_row():
 
 		if get_color_at_cell(vertical_check) == color:
 			return false
@@ -3496,13 +3561,37 @@ func _resolve_matches_and_gravity() -> bool:
 
 		var matches := find_matches()
 
+		var tetris_rows := _find_full_rows_for_tetris_trait()
 
-		if matches.is_empty():
+
+		if matches.is_empty() and tetris_rows.is_empty():
 
 			return false
 
+
+		if not tetris_rows.is_empty():
+
+			var merged_set: Dictionary = {}
+
+			for cell in matches:
+
+				merged_set[cell] = true
+
+			for cell in tetris_rows:
+
+				merged_set[cell] = true
+
+			matches = []
+
+			for cell in merged_set.keys():
+
+				matches.append(cell)
+
+
+		matches = _expand_matches_for_branch_trait(matches)
+
 		matches = _expand_matches_for_dissolvers(matches)
-		
+
 		separate_partners_of_matches(matches)
 
 
@@ -3601,6 +3690,272 @@ func _resolve_matches_and_gravity() -> bool:
 	# Godot requires an explicit return because this function
 	# is typed as -> bool.
 	return false
+
+
+# ============================================================
+# TETRIS TRAIT -- FULL ROW CHECK
+# ============================================================
+#
+# Returns every cell in every row that's completely filled
+# (by a pill half, virus, or tether -- any mix of colors),
+# when the Tetris trait is owned. Unlike Branch/Dissolver,
+# this doesn't expand an existing match -- it can produce
+# cells to clear even when find_matches() found nothing at
+# all, so it's merged in at the top of
+# _resolve_matches_and_gravity() rather than chained through
+# the other _expand_matches_for_*() functions.
+# ============================================================
+
+func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
+
+	var result: Array[Vector2i] = []
+
+	if not has_tetris_trait():
+
+		return result
+
+
+	for row in range(BOARD_HEIGHT):
+
+		var row_full := true
+
+		for col in range(BOARD_WIDTH):
+
+			if not is_cell_filled(Vector2i(col, row)):
+
+				row_full = false
+
+				break
+
+
+		if not row_full:
+			continue
+
+
+		for col in range(BOARD_WIDTH):
+
+			result.append(Vector2i(col, row))
+
+
+	return result
+
+
+# ============================================================
+# BRANCH TRAIT -- CONNECTED SAME-COLOR FLOOD FILL
+# ============================================================
+#
+# Called once per match-resolution pass, before dissolver
+# expansion. Starting from every cell already in `matches`,
+# flood-fills outward through orthogonally-adjacent cells that
+# share that cell's own color, recursively pulling in every
+# newly-found cell's neighbors as well.
+#
+# Two special interactions:
+#
+#   TETHER -- a branch step can pass straight through a tether
+#   (if the tether's color matches the flooding color) to reach
+#   whatever pill half/virus sits at its far end. The tether's
+#   own cells are never added to the clear set -- only the
+#   occupant it reaches is. If that occupant is later cleared,
+#   the tether will detect its endpoint went invalid on its own
+#   next monitoring pass and break itself (see
+#   Tether._endpoints_are_valid()) -- no special handling
+#   needed here.
+#
+#   PACMAN -- horizontal branch steps wrap around the board
+#   edges when the Pacman trait is owned, exactly like normal
+#   line matching. Vertical steps never wrap.
+#
+# Cells in the original match can have different colors from
+# each other (e.g. two separate line matches resolving in the
+# same pass) -- each cell floods using its OWN color, so colors
+# are never mixed together.
+#
+# ============================================================
+
+func _expand_matches_for_branch_trait(
+	matches: Array[Vector2i]
+) -> Array[Vector2i]:
+
+	if not has_branch_trait():
+
+		return matches
+
+
+	var match_set: Dictionary = {}
+
+	for cell in matches:
+
+		match_set[cell] = true
+
+
+	var queue: Array[Vector2i] = matches.duplicate()
+
+	var directions: Array[Vector2i] = [
+		Vector2i(1, 0),
+		Vector2i(-1, 0),
+		Vector2i(0, 1),
+		Vector2i(0, -1)
+	]
+
+	var wrap_horizontal: bool = has_pacman_trait()
+
+
+	while not queue.is_empty():
+
+		var cell: Vector2i = queue.pop_front()
+
+		var color: Variant = get_color_at_cell(cell)
+
+		if color == null:
+			continue
+
+
+		for direction in directions:
+
+			var found: Variant = _branch_step(
+				cell,
+				direction,
+				color,
+				wrap_horizontal
+			)
+
+			if found == null:
+				continue
+
+			var found_cell: Vector2i = found
+
+			if match_set.has(found_cell):
+				continue
+
+			match_set[found_cell] = true
+
+			queue.append(found_cell)
+
+
+	var result: Array[Vector2i] = []
+
+	for cell in match_set.keys():
+
+		result.append(cell)
+
+
+	return result
+
+
+# ============================================================
+# BRANCH STEP
+# ============================================================
+#
+# Walks from `from_cell` one step in `direction`, transparently
+# passing through any tether whose color matches, until it
+# either:
+#
+#   - reaches an occupied cell (returns that cell if its color
+#     matches, otherwise returns null -- the branch stops dead,
+#     it does NOT keep searching past a wrong-colored cell)
+#   - reaches an empty cell (returns null)
+#   - runs off the board edge without wrapping (returns null)
+#
+# Returns the found Vector2i, or null if nothing valid was
+# found in that direction.
+# ============================================================
+
+func _branch_step(
+	from_cell: Vector2i,
+	direction: Vector2i,
+	color: int,
+	wrap_horizontal_enabled: bool
+) -> Variant:
+
+	var wrap_this_direction: bool = (
+		wrap_horizontal_enabled
+		and direction.y == 0
+		and direction.x != 0
+	)
+
+	var cell := from_cell + direction
+
+	var max_steps := (
+		BOARD_WIDTH
+		if wrap_this_direction
+		else (BOARD_WIDTH + BOARD_HEIGHT)
+	)
+
+	var steps := 0
+
+
+	while steps < max_steps:
+
+		steps += 1
+
+
+		if cell.x < 0 or cell.x >= BOARD_WIDTH:
+
+			if wrap_this_direction:
+
+				cell.x = wrapi(cell.x, 0, BOARD_WIDTH)
+
+			else:
+
+				return null
+
+
+		if cell.y < 0 or cell.y >= BOARD_HEIGHT:
+
+			return null
+
+
+		# ----------------------------------------------------
+		# OCCUPIED CELL (PILL HALF OR VIRUS)
+		# ----------------------------------------------------
+
+		var found_color: Variant = get_color_at_cell(cell)
+
+		if found_color != null:
+
+			if found_color == color:
+
+				return cell
+
+
+			return null
+
+
+		# ----------------------------------------------------
+		# TETHER -- TRANSPARENT PASS-THROUGH
+		#
+		# The branch never stops on the tether itself; it only
+		# continues straight through to whatever is at the far
+		# end, exactly like a normal line match treats tethers.
+		# ----------------------------------------------------
+
+		if tether_cells.has(cell):
+
+			var tether := tether_cells[cell] as Tether
+
+			if tether == null:
+				return null
+
+			if not tether.connects_in_direction(cell, direction):
+				return null
+
+			if tether.tether_color != color:
+				return null
+
+			cell += direction
+
+			continue
+
+
+		# ----------------------------------------------------
+		# EMPTY CELL -- BRANCH STOPS HERE
+		# ----------------------------------------------------
+
+		return null
+
+
+	return null
 
 
 # ============================================================

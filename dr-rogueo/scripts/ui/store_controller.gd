@@ -4,6 +4,7 @@ extends Node2D
 
 
 signal item_selected(item: Item)
+signal trait_selected(trait_item: Trait)
 signal closed
 
 
@@ -28,6 +29,18 @@ signal closed
 	NodePath("OwnedItems/OwnedItem1"),
 	NodePath("OwnedItems/OwnedItem2"),
 	NodePath("OwnedItems/OwnedItem3")
+]
+
+@export var trait_slot_paths: Array[NodePath] = [
+	NodePath("Traits/Trait1"),
+	NodePath("Traits/Trait2"),
+	NodePath("Traits/Trait3")
+]
+
+@export var owned_trait_paths: Array[NodePath] = [
+	NodePath("OwnedTraits/OwnedTrait1"),
+	NodePath("OwnedTraits/OwnedTrait2"),
+	NodePath("OwnedTraits/OwnedTrait3")
 ]
 
 @export var coin_label_path: NodePath = NodePath("Coins/Amount")
@@ -72,10 +85,22 @@ const DEBUG_DEFAULT := "__DEFAULT__"
 
 
 # ============================================================
-# COIN ICON
+# ITEM ICON
 # ============================================================
 
-@export_group("Coin Icon")
+@export_group("Item Icon")
+
+@export var item_icon_position := Vector2(6, 9):
+	set(value):
+		item_icon_position = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
+# ITEM COIN ICON
+# ============================================================
+
+@export_group("Item Coin Icon")
 
 @export var coin_texture: Texture2D:
 	set(value):
@@ -95,14 +120,76 @@ var coin_animation_fps := 8.0:
 
 
 # ============================================================
-# ITEM ICON
+# ITEM PRICE
 # ============================================================
 
-@export_group("Item Icon")
+@export_group("Item Price")
 
-@export var item_icon_position := Vector2(6, 9):
+@export var price_font: Font:
 	set(value):
-		item_icon_position = value
+		price_font = value
+		_queue_editor_preview_update()
+
+@export_range(1, 32, 1)
+var price_font_size := 7:
+	set(value):
+		price_font_size = value
+		_queue_editor_preview_update()
+
+@export var price_color := Color.WHITE:
+	set(value):
+		price_color = value
+		_queue_editor_preview_update()
+
+@export var price_position := Vector2(39, 0):
+	set(value):
+		price_position = value
+		_queue_editor_preview_update()
+
+@export var price_size := Vector2(12, 10):
+	set(value):
+		price_size = value
+		_queue_editor_preview_update()
+
+@export var price_alignment := HORIZONTAL_ALIGNMENT_RIGHT:
+	set(value):
+		price_alignment = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
+# TRAIT ICON
+# ============================================================
+
+@export_group("Trait Icon")
+
+@export var trait_icon_position := Vector2(6, 9):
+	set(value):
+		trait_icon_position = value
+		_queue_editor_preview_update()
+
+
+@export_group("Trait Coin Icon")
+
+@export var trait_coin_position := Vector2(39, 9):
+	set(value):
+		trait_coin_position = value
+		_queue_editor_preview_update()
+
+
+@export_group("Trait Price")
+
+@export var trait_price_position := Vector2(39, 0):
+	set(value):
+		trait_price_position = value
+		_queue_editor_preview_update()
+
+
+@export_group("Owned Trait Icon")
+
+@export var owned_trait_icon_position := Vector2(7, 9):
+	set(value):
+		owned_trait_icon_position = value
 		_queue_editor_preview_update()
 
 
@@ -199,44 +286,6 @@ var rarity_font_size := 5:
 
 
 # ============================================================
-# PRICE
-# ============================================================
-
-@export_group("Price")
-
-@export var price_font: Font:
-	set(value):
-		price_font = value
-		_queue_editor_preview_update()
-
-@export_range(1, 32, 1)
-var price_font_size := 7:
-	set(value):
-		price_font_size = value
-		_queue_editor_preview_update()
-
-@export var price_color := Color.WHITE:
-	set(value):
-		price_color = value
-		_queue_editor_preview_update()
-
-@export var price_position := Vector2(39, 0):
-	set(value):
-		price_position = value
-		_queue_editor_preview_update()
-
-@export var price_size := Vector2(12, 10):
-	set(value):
-		price_size = value
-		_queue_editor_preview_update()
-
-@export var price_alignment := HORIZONTAL_ALIGNMENT_RIGHT:
-	set(value):
-		price_alignment = value
-		_queue_editor_preview_update()
-
-
-# ============================================================
 # EDITOR PREVIEW
 # ============================================================
 
@@ -277,6 +326,16 @@ var _owned_slot_visual_nodes: Array = []
 var _purchase_preview_icon: Sprite2D = null
 var _purchase_preview_slot := -1
 
+var store_traits: Array[Trait] = []
+
+var selected_trait_slot := -1
+var last_selected_trait_slot := -1
+
+var _trait_slot_visual_nodes: Array = []
+var _owned_trait_slot_visual_nodes: Array = []
+
+var _trait_purchase_preview_icon: Sprite2D = null
+var _trait_purchase_preview_slot := -1
 
 # ============================================================
 # CUSTOM INSPECTOR
@@ -1008,6 +1067,8 @@ func _ready() -> void:
 
 	_roll_stock()
 
+	_roll_trait_stock()
+
 	# --------------------------------------------------------
 	# Standalone F6 initialization is deferred so the scene
 	# has finished entering the tree first.
@@ -1020,6 +1081,8 @@ func _ready() -> void:
 	_update_coin_display()
 
 	_update_owned_visuals()
+
+	_update_owned_trait_visuals()
 
 	if menu:
 
@@ -1300,6 +1363,8 @@ func setup(game_board: DrRogueoBoard) -> void:
 
 	_update_owned_visuals()
 
+	_update_owned_trait_visuals()
+
 
 # ============================================================
 # COIN ACCESS
@@ -1455,6 +1520,100 @@ func _fresh_item(id: String) -> Item:
 
 
 # ============================================================
+# TRAIT STOCK
+# ============================================================
+func _roll_trait_stock() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	store_traits.clear()
+
+	var catalog: Array[Trait] = (
+		TraitCatalog.create_catalog()
+	)
+
+	if catalog.is_empty():
+		return
+
+
+	# --------------------------------------------------------
+	# SAMPLE WITHOUT REPLACEMENT
+	#
+	# Traits are never duplicated on the shelf -- once one is
+	# picked for a slot, it's removed from the pool for the
+	# remaining slots. If there are more slots than trait
+	# types in the catalog, the leftover slots are left empty
+	# rather than repeating anything.
+	# --------------------------------------------------------
+
+	var available: Array[Trait] = []
+
+	for trait_item in catalog:
+
+		if trait_item:
+
+			available.append(trait_item)
+
+
+	for _i in trait_slot_paths.size():
+
+		if available.is_empty():
+
+			store_traits.append(null)
+
+			continue
+
+
+		var index: int = randi_range(
+			0,
+			available.size() - 1
+		)
+
+		var picked := available[index]
+
+		available.remove_at(index)
+
+		store_traits.append(
+			_fresh_trait(picked.id)
+		)
+
+	_update_trait_slot_visuals()
+
+
+func _fresh_trait(id: String) -> Trait:
+
+	var clean_id := id.strip_edges()
+
+	if clean_id.is_empty():
+		return null
+
+	var catalog: Array[Trait] = (
+		TraitCatalog.create_catalog()
+	)
+
+	for trait_item in catalog:
+
+		if trait_item == null:
+			continue
+
+		if str(trait_item.id) == clean_id:
+
+			return trait_item
+
+	for trait_item in catalog:
+
+		if trait_item == null:
+			continue
+
+		if str(trait_item.display_name) == clean_id:
+
+			return trait_item
+
+	return null
+
+
+# ============================================================
 # STORE SLOT VISUALS
 # ============================================================
 
@@ -1578,6 +1737,124 @@ func _add_item_visuals(
 
 
 # ============================================================
+# TRAIT SLOT VISUALS
+# ============================================================
+
+func _update_trait_slot_visuals() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	while _trait_slot_visual_nodes.size() < trait_slot_paths.size():
+
+		_trait_slot_visual_nodes.append([])
+
+	for i in trait_slot_paths.size():
+
+		var slot := get_node_or_null(
+			trait_slot_paths[i]
+		) as Node2D
+
+		if slot == null:
+			continue
+
+		var old_nodes: Array = (
+			_trait_slot_visual_nodes[i]
+		)
+
+		for node in old_nodes:
+
+			if is_instance_valid(node):
+
+				node.free()
+
+		_trait_slot_visual_nodes[i] = []
+
+		if i >= store_traits.size():
+			continue
+
+		var trait_item := store_traits[i]
+
+		if trait_item == null:
+			continue
+
+		_add_trait_visuals(
+			slot,
+			trait_item,
+			"StoreTraitVisual",
+			i
+		)
+
+	_update_highlighted_info()
+
+
+func _add_trait_visuals(
+	slot: Node2D,
+	trait_item: Trait,
+	prefix: String,
+	slot_index: int
+) -> void:
+
+	var created_nodes: Array = []
+
+	if trait_item.icon:
+
+		var icon := Sprite2D.new()
+
+		icon.name = prefix + "Icon"
+
+		icon.texture = trait_item.icon
+
+		icon.centered = false
+
+		icon.position = _pixel_vector(
+			trait_icon_position
+		)
+
+		slot.add_child(icon)
+
+		created_nodes.append(icon)
+
+	if coin_texture:
+
+		var coin := _create_coin_animation()
+
+		coin.name = prefix + "Coin"
+
+		coin.position = _pixel_vector(
+			trait_coin_position
+		)
+
+		slot.add_child(coin)
+
+		created_nodes.append(coin)
+
+	var price_label := Label.new()
+
+	price_label.name = prefix + "Price"
+
+	price_label.text = "%02d" % trait_item.cost
+
+	_apply_label_settings(
+		price_label,
+		trait_price_position,
+		price_size,
+		price_alignment,
+		price_font_size,
+		price_color,
+		price_font
+	)
+
+	slot.add_child(price_label)
+
+	created_nodes.append(price_label)
+
+	_trait_slot_visual_nodes[slot_index] = (
+		created_nodes
+	)
+
+
+# ============================================================
 # HIGHLIGHTED INFO
 # ============================================================
 
@@ -1636,16 +1913,15 @@ func _on_menu_selection_changed(
 		return
 
 	# --------------------------------------------------------
-	# PURCHASE PLACEMENT
-	#
-	# While choosing an inventory slot for a purchased item,
-	# show the purchased item's icon on the highlighted slot.
+	# PURCHASE PLACEMENT (ITEM)
 	# --------------------------------------------------------
 
 	if (
 		menu != null
 		and menu.transaction_mode
 		== StoreMenuController.TransactionMode.BUY_PLACEMENT
+		and menu.transaction_kind
+		== StoreMenuController.TransactionKind.ITEM
 	):
 
 		var owned_index := menu.owned_item_slots.find(
@@ -1661,6 +1937,33 @@ func _on_menu_selection_changed(
 
 		return
 
+
+	# --------------------------------------------------------
+	# PURCHASE PLACEMENT (TRAIT)
+	# --------------------------------------------------------
+
+	if (
+		menu != null
+		and menu.transaction_mode
+		== StoreMenuController.TransactionMode.BUY_PLACEMENT
+		and menu.transaction_kind
+		== StoreMenuController.TransactionKind.TRAIT
+	):
+
+		var owned_trait_index := menu.owned_trait_slots.find(
+			selection
+		)
+
+		if owned_trait_index >= 0:
+
+			show_trait_purchase_preview(
+				menu.purchased_trait,
+				owned_trait_index
+			)
+
+		return
+
+
 	var index: int = _get_store_slot_index(
 		selection
 	)
@@ -1669,6 +1972,19 @@ func _on_menu_selection_changed(
 
 		_show_highlighted_info(
 			index
+		)
+
+		return
+
+
+	var trait_index: int = _get_store_trait_slot_index(
+		selection
+	)
+
+	if trait_index >= 0:
+
+		_show_highlighted_trait_info(
+			trait_index
 		)
 
 
@@ -1680,6 +1996,18 @@ func _get_store_slot_index(
 		return -1
 
 	return menu.store_item_slots.find(
+		selection
+	)
+
+
+func _get_store_trait_slot_index(
+	selection: MenuSelectable
+) -> int:
+
+	if menu == null:
+		return -1
+
+	return menu.store_trait_slots.find(
 		selection
 	)
 
@@ -1721,6 +2049,40 @@ func _show_highlighted_info(
 
 	highlighted_rarity_label.text = (
 		item.get_rarity_name()
+	)
+
+	highlighted_name_label.visible = true
+
+	highlighted_rarity_label.visible = true
+
+
+func _show_highlighted_trait_info(
+	index: int
+) -> void:
+
+	if index < 0:
+		return
+
+	if index >= store_traits.size():
+		return
+
+	var trait_item := store_traits[index]
+
+	if trait_item == null:
+		return
+
+	if highlighted_name_label == null:
+		return
+
+	if highlighted_rarity_label == null:
+		return
+
+	highlighted_name_label.text = (
+		trait_item.display_name
+	)
+
+	highlighted_rarity_label.text = (
+		trait_item.get_rarity_name()
 	)
 
 	highlighted_name_label.visible = true
@@ -1822,6 +2184,71 @@ func hide_purchase_preview() -> void:
 		_purchase_preview_icon = null
 
 		_purchase_preview_slot = -1
+
+
+# ============================================================
+# TRAIT PURCHASE PLACEMENT PREVIEW
+# ============================================================
+
+func show_trait_purchase_preview(
+	trait_item: Trait,
+	owned_slot: int
+) -> void:
+
+	if trait_item == null:
+		return
+
+	if owned_slot < 0:
+		return
+
+	if owned_slot >= owned_trait_paths.size():
+		return
+
+	var slot := get_node_or_null(
+		owned_trait_paths[owned_slot]
+	) as Node2D
+
+	if slot == null:
+		return
+
+	if _trait_purchase_preview_icon == null:
+
+		_trait_purchase_preview_icon = Sprite2D.new()
+
+		_trait_purchase_preview_icon.name = (
+			"TraitPurchasePreviewIcon"
+		)
+
+		_trait_purchase_preview_icon.centered = false
+
+		slot.add_child(
+			_trait_purchase_preview_icon
+		)
+
+	elif _trait_purchase_preview_icon.get_parent() != slot:
+
+		_trait_purchase_preview_icon.reparent(
+			slot
+		)
+
+	_trait_purchase_preview_icon.texture = trait_item.icon
+
+	_trait_purchase_preview_icon.position = _pixel_vector(
+		owned_trait_icon_position
+	)
+
+	_trait_purchase_preview_slot = owned_slot
+
+
+func hide_trait_purchase_preview() -> void:
+
+	if _trait_purchase_preview_icon:
+
+		_trait_purchase_preview_icon.free()
+
+		_trait_purchase_preview_icon = null
+
+		_trait_purchase_preview_slot = -1
 
 
 # ============================================================
@@ -1961,6 +2388,67 @@ func _update_owned_visuals() -> void:
 
 
 # ============================================================
+# OWNED TRAITS
+# ============================================================
+
+func _update_owned_trait_visuals() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	while _owned_trait_slot_visual_nodes.size() < owned_trait_paths.size():
+
+		_owned_trait_slot_visual_nodes.append(null)
+
+	for i in owned_trait_paths.size():
+
+		var slot := get_node_or_null(
+			owned_trait_paths[i]
+		) as Node2D
+
+		if slot == null:
+			continue
+
+		for child in slot.get_children():
+
+			if (
+				child.name == "OwnedTraitVisualIcon"
+				or child.name == "TraitPurchasePreviewIcon"
+			):
+
+				child.free()
+
+		_owned_trait_slot_visual_nodes[i] = null
+
+		if i >= TraitInventory.traits.size():
+			continue
+
+		var trait_item := TraitInventory.traits[i]
+
+		if trait_item == null:
+			continue
+
+		if trait_item.icon == null:
+			continue
+
+		var icon := Sprite2D.new()
+
+		icon.name = "OwnedTraitVisualIcon"
+
+		icon.texture = trait_item.icon
+
+		icon.centered = false
+
+		icon.position = _pixel_vector(
+			owned_trait_icon_position
+		)
+
+		slot.add_child(icon)
+
+		_owned_trait_slot_visual_nodes[i] = icon
+
+
+# ============================================================
 # SELECTION
 # ============================================================
 
@@ -1981,6 +2469,26 @@ func select_item_slot(index: int) -> void:
 
 	item_selected.emit(
 		store_items[index]
+	)
+
+
+func select_trait_slot(index: int) -> void:
+
+	if index < 0:
+		return
+
+	if index >= store_traits.size():
+		return
+
+	if store_traits[index] == null:
+		return
+
+	selected_trait_slot = index
+
+	last_selected_trait_slot = index
+
+	trait_selected.emit(
+		store_traits[index]
 	)
 
 
@@ -2060,6 +2568,61 @@ func complete_purchase(
 
 
 # ============================================================
+# TRAIT PURCHASE
+# ============================================================
+
+func buy_selected_trait() -> Trait:
+
+	if selected_trait_slot < 0:
+		return null
+
+	if selected_trait_slot >= store_traits.size():
+		return null
+
+	var trait_item := store_traits[selected_trait_slot]
+
+	if trait_item == null:
+		return null
+
+	if get_coins() < trait_item.cost:
+		return null
+
+	if TraitInventory.traits.find(null) == -1:
+		return null
+
+	return trait_item
+
+
+func complete_trait_purchase(
+	trait_item: Trait,
+	store_slot: int
+) -> void:
+
+	if trait_item == null:
+		return
+
+	if store_slot < 0:
+		return
+
+	if store_slot >= store_traits.size():
+		return
+
+	set_coins(
+		get_coins() - trait_item.cost
+	)
+
+	_update_coin_display()
+
+	hide_trait_purchase_preview()
+
+	store_traits[store_slot] = null
+
+	_update_trait_slot_visuals()
+
+	_update_owned_trait_visuals()
+
+
+# ============================================================
 # SELL SUPPORT
 # ============================================================
 
@@ -2093,6 +2656,40 @@ func sell_item(
 	_update_coin_display()
 
 	_update_owned_visuals()
+
+	return true
+
+
+func sell_trait(
+	inventory_slot: int
+) -> bool:
+
+	if inventory_slot < 0:
+		return false
+
+	if inventory_slot >= TraitInventory.traits.size():
+		return false
+
+	var trait_item := TraitInventory.traits[inventory_slot]
+
+	if trait_item == null:
+		return false
+
+	var sell_value: int = trait_item.sell_price
+
+	if not TraitInventory.remove_trait_from_slot(
+		inventory_slot
+	):
+
+		return false
+
+	add_coins(
+		sell_value
+	)
+
+	_update_coin_display()
+
+	_update_owned_trait_visuals()
 
 	return true
 

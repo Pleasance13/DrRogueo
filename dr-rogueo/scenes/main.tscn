@@ -94,7 +94,6 @@ tether_sprite_texture = ExtResource("12_a8y0u")
 shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 store_scene = ExtResource("22_y6deb")
-debug_force_pacman_trait = true
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 
