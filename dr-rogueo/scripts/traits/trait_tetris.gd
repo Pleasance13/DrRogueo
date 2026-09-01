@@ -31,11 +31,11 @@ func _init() -> void:
 
 	display_name = "TETRIS"
 
-	rarity = Trait.Rarity.RARE
+	rarity = Trait.Rarity.EPIC
 
-	cost = 40
+	cost = 90
 
-	sell_price = 20
+	sell_price = 45
 
 	description = (
 		"Any completely full row clears on its own, " +

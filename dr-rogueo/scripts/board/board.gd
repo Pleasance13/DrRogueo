@@ -28,7 +28,6 @@ enum FallSpeed {
 
 @export var pill_scene: PackedScene
 
-@export_enum("LOW", "MEDIUM", "HIGH")
 var fall_speed: int = FallSpeed.LOW
 
 
@@ -36,7 +35,6 @@ var fall_speed: int = FallSpeed.LOW
 
 @export var virus_scene: PackedScene
 
-@export_range(1, 20, 1)
 var level: int = 1
 
 
@@ -63,6 +61,17 @@ var level: int = 1
 
 @export var ghost_sprite_texture: Texture2D
 
+
+# ============================================================
+# SHIFT
+# ============================================================
+
+@export_group("Shift")
+
+@export_range(0.1, 10.0, 0.1)
+var shift_wrap_max_duration: float = 2.0
+
+
 # ============================================================
 # STORE
 # ============================================================
@@ -73,21 +82,196 @@ var level: int = 1
 
 
 # ============================================================
-# TRAITS (DEBUG) TEMP
+# DEBUG
+# ============================================================
+
+@export_group("Debug")
+
+@export var debug_enabled := false:
+	set(value):
+		debug_enabled = value
+		notify_property_list_changed()
+
+@export_subgroup("Game Settings")
+
+@export_range(1, 20, 1)
+var debug_stage: int = 1
+
+@export_range(1, 3, 1)
+var debug_level_in_stage: int = 1
+
+@export_enum("LOW", "MEDIUM", "HIGH")
+var debug_fall_speed: int = FallSpeed.LOW
+
+@export_range(0, 999, 1)
+var debug_coins: int = 0
+
+@export_subgroup("Debug Items + Traits")
+
+@export var debug_item_slot_1: String = ""
+@export var debug_item_slot_2: String = ""
+@export var debug_item_slot_3: String = ""
+
+@export var debug_trait_slot_1: String = ""
+@export var debug_trait_slot_2: String = ""
+@export var debug_trait_slot_3: String = ""
+
+
+# ============================================================
+# DEBUG DROPDOWNS (ITEMS / TRAITS)
 # ============================================================
 #
-# TEMPORARY until trait buy/sell is wired into the store UI.
-# Check this to force-grant the Pacman trait at run start so
-# the wrap mechanic can be playtested now.
+# _validate_property() dynamically attaches a populated enum
+# hint to the plain String @export vars above -- no manual
+# _get_property_list()/_get()/_set() needed. The stored value
+# IS the display name shown in the dropdown (e.g. "PONG PILL");
+# conversion to the actual id happens in _apply_debug_settings()
+# via the _to_id() helpers below.
 # ============================================================
 
-@export_group("Traits (Debug)")
+func _validate_property(property: Dictionary) -> void:
 
-@export var debug_force_pacman_trait := false
+	var item_props := [
+		"debug_item_slot_1",
+		"debug_item_slot_2",
+		"debug_item_slot_3"
+	]
 
-@export var debug_force_branch_trait := false
+	var trait_props := [
+		"debug_trait_slot_1",
+		"debug_trait_slot_2",
+		"debug_trait_slot_3"
+	]
 
-@export var debug_force_tetris_trait := false
+	if property.name in item_props:
+
+		property.hint = PROPERTY_HINT_ENUM
+		property.hint_string = _get_debug_item_enum_hint()
+
+		if not debug_enabled:
+			property.usage |= PROPERTY_USAGE_READ_ONLY
+
+		return
+
+	if property.name in trait_props:
+
+		property.hint = PROPERTY_HINT_ENUM
+		property.hint_string = _get_debug_trait_enum_hint()
+
+		if not debug_enabled:
+			property.usage |= PROPERTY_USAGE_READ_ONLY
+
+
+func _get_debug_item_enum_hint() -> String:
+
+	var options: Array[String] = ["None"]
+	var used_names: Dictionary = {}
+
+	for item in StoreCatalog.create_catalog():
+
+		if item == null:
+			continue
+
+		var id: String = str(item.id)
+
+		if id.is_empty():
+			continue
+
+		var display_name: String = str(item.display_name)
+
+		if display_name.is_empty():
+			display_name = id
+
+		var option_name := display_name
+
+		if used_names.has(option_name):
+			option_name = "%s [%s]" % [display_name, id]
+
+		used_names[option_name] = true
+
+		options.append(option_name)
+
+	return ",".join(options)
+
+
+func _debug_item_dropdown_value_to_id(value: String) -> String:
+
+	value = value.strip_edges()
+
+	if value.is_empty() or value == "None":
+		return ""
+
+	for item in StoreCatalog.create_catalog():
+
+		if item == null:
+			continue
+
+		var id := str(item.id)
+		var display_name := str(item.display_name)
+
+		if value == display_name or value == id:
+			return id
+
+		if value == "%s [%s]" % [display_name, id]:
+			return id
+
+	return ""
+
+
+func _get_debug_trait_enum_hint() -> String:
+
+	var options: Array[String] = ["None"]
+	var used_names: Dictionary = {}
+
+	for trait_item in TraitCatalog.create_catalog():
+
+		if trait_item == null:
+			continue
+
+		var id: String = str(trait_item.id)
+
+		if id.is_empty():
+			continue
+
+		var display_name: String = str(trait_item.display_name)
+
+		if display_name.is_empty():
+			display_name = id
+
+		var option_name := display_name
+
+		if used_names.has(option_name):
+			option_name = "%s [%s]" % [display_name, id]
+
+		used_names[option_name] = true
+
+		options.append(option_name)
+
+	return ",".join(options)
+
+
+func _debug_trait_dropdown_value_to_id(value: String) -> String:
+
+	value = value.strip_edges()
+
+	if value.is_empty() or value == "None":
+		return ""
+
+	for trait_item in TraitCatalog.create_catalog():
+
+		if trait_item == null:
+			continue
+
+		var id := str(trait_item.id)
+		var display_name := str(trait_item.display_name)
+
+		if value == display_name or value == id:
+			return id
+
+		if value == "%s [%s]" % [display_name, id]:
+			return id
+
+	return ""
 
 
 # How many levels make up one stage. The store opens between
@@ -257,19 +441,7 @@ func _ready() -> void:
 
 	TraitInventory.reset()
 
-	if debug_force_pacman_trait:
-
-		TraitInventory.add_trait(TraitPacman.new())
-
-	if debug_force_branch_trait:
-
-		TraitInventory.add_trait(TraitBranch.new())
-
-	if debug_force_tetris_trait:
-
-		TraitInventory.add_trait(TraitTetris.new())
-
-	# Create the preview first.
+	_apply_debug_settings()
 
 	# Create the preview first.
 	create_next_preview()
@@ -279,6 +451,110 @@ func _ready() -> void:
 
 	# Finally populate the board.
 	generate_starting_viruses()
+
+
+# ============================================================
+# DEBUG SETTINGS (non-store, full-game testing)
+# ============================================================
+
+func _apply_debug_settings() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	if not debug_enabled:
+		return
+
+	print("DEBUG SETTINGS APPLIED: ", debug_item_slot_1, " / ", debug_item_slot_2, " / ", debug_item_slot_3)
+
+
+	# --------------------------------------------------------
+	# STAGE / LEVEL
+	# --------------------------------------------------------
+
+	var clamped_level_in_stage: int = clampi(
+		debug_level_in_stage,
+		1,
+		LEVELS_PER_STAGE
+	)
+
+	level = (
+		(maxi(debug_stage, 1) - 1) * LEVELS_PER_STAGE
+		+ clamped_level_in_stage
+	)
+
+
+	# --------------------------------------------------------
+	# FALL SPEED / COINS
+	# --------------------------------------------------------
+
+	fall_speed = debug_fall_speed
+
+	coins = debug_coins
+
+
+	# --------------------------------------------------------
+	# ITEMS
+	# --------------------------------------------------------
+
+	var item_ids := [
+		_debug_item_dropdown_value_to_id(debug_item_slot_1),
+		_debug_item_dropdown_value_to_id(debug_item_slot_2),
+		_debug_item_dropdown_value_to_id(debug_item_slot_3)
+	]
+
+	for i in item_ids.size():
+
+		if item_ids[i].is_empty():
+			continue
+
+		var item := _fresh_debug_item(item_ids[i])
+
+		if item != null:
+
+			Inventory.add_item_to_slot(item, i)
+
+
+	# --------------------------------------------------------
+	# TRAITS
+	# --------------------------------------------------------
+
+	var trait_ids := [
+		_debug_trait_dropdown_value_to_id(debug_trait_slot_1),
+		_debug_trait_dropdown_value_to_id(debug_trait_slot_2),
+		_debug_trait_dropdown_value_to_id(debug_trait_slot_3)
+	]
+
+	for i in trait_ids.size():
+
+		if trait_ids[i].is_empty():
+			continue
+
+		var trait_item := _fresh_debug_trait(trait_ids[i])
+
+		if trait_item != null:
+
+			TraitInventory.add_trait_to_slot(trait_item, i)
+
+
+func _fresh_debug_item(id: String) -> Item:
+
+	for item in StoreCatalog.create_catalog():
+
+		if item != null and str(item.id) == id:
+			return item
+
+	return null
+
+
+func _fresh_debug_trait(id: String) -> Trait:
+
+	for trait_item in TraitCatalog.create_catalog():
+
+		if trait_item != null and str(trait_item.id) == id:
+			return trait_item
+
+	return null
 
 
 # ============================================================
@@ -4578,6 +4854,14 @@ func wait_for_vanishing_halves() -> void:
 
 func apply_gravity(direction: Vector2i = Vector2i(0, 1)) -> void:
 
+	var wrap_horizontal: bool = (
+		direction.y == 0
+		and direction.x != 0
+		and has_pacman_trait()
+	)
+
+	var elapsed_time := 0.0
+
 	while true:
 
 		var units := build_gravity_units()
@@ -4607,7 +4891,8 @@ func apply_gravity(direction: Vector2i = Vector2i(0, 1)) -> void:
 			if gravity_unit_can_fall(
 				unit,
 				moving_halves,
-				direction
+				direction,
+				wrap_horizontal
 			):
 
 				movable_units.append(unit)
@@ -4627,14 +4912,30 @@ func apply_gravity(direction: Vector2i = Vector2i(0, 1)) -> void:
 			break
 
 
+		# ----------------------------------------------------
+		# WRAP-AROUND TIME LIMIT
+		#
+		# Only relevant when gravity wraps horizontally (Shift
+		# Pill + Pacman). With no wall to stop against, wrapped
+		# units could otherwise slide forever. Normal bounded
+		# gravity is never capped by this.
+		# ----------------------------------------------------
+
+		if wrap_horizontal and elapsed_time >= shift_wrap_max_duration:
+
+			break
+
+
 		await get_tree().create_timer(
 			get_gravity_interval()
 		).timeout
 
+		elapsed_time += get_gravity_interval()
+
 
 		for unit in movable_units:
 
-			move_gravity_unit(unit, direction)
+			move_gravity_unit(unit, direction, wrap_horizontal)
 
 
 		await get_tree().process_frame
@@ -4793,7 +5094,8 @@ func find_half_cell(
 func gravity_unit_can_fall(
 	unit: Dictionary,
 	moving_halves: Dictionary,
-	direction: Vector2i = Vector2i(0, 1)
+	direction: Vector2i = Vector2i(0, 1),
+	wrap_horizontal: bool = false
 ) -> bool:
 
 	var cells: Array[Vector2i] = (
@@ -4808,7 +5110,15 @@ func gravity_unit_can_fall(
 		)
 
 
-		if destination.x < 0 or destination.x >= BOARD_WIDTH:
+		if wrap_horizontal:
+
+			destination.x = wrapi(
+				destination.x,
+				0,
+				BOARD_WIDTH
+			)
+
+		elif destination.x < 0 or destination.x >= BOARD_WIDTH:
 
 			return false
 
@@ -4945,7 +5255,8 @@ func unit_contains_half(
 
 func move_gravity_unit(
 	unit: Dictionary,
-	direction: Vector2i = Vector2i(0, 1)
+	direction: Vector2i = Vector2i(0, 1),
+	wrap_horizontal: bool = false
 ) -> void:
 
 	var halves: Array[PillHalf] = (
@@ -4971,6 +5282,15 @@ func move_gravity_unit(
 		var destination := (
 			cell + direction
 		)
+
+
+		if wrap_horizontal:
+
+			destination.x = wrapi(
+				destination.x,
+				0,
+				BOARD_WIDTH
+			)
 
 
 		destination_cells.append(

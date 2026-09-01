@@ -94,6 +94,15 @@ tether_sprite_texture = ExtResource("12_a8y0u")
 shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 store_scene = ExtResource("22_y6deb")
+debug_enabled = true
+debug_stage = 2
+debug_level_in_stage = 2
+debug_coins = 35
+debug_item_slot_1 = "TETHER PILL"
+debug_item_slot_2 = "PONG PILL"
+debug_item_slot_3 = "SHIFT PILL"
+debug_trait_slot_1 = "PACMAN"
+debug_trait_slot_2 = "BRANCH"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 

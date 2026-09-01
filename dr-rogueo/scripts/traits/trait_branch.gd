@@ -32,11 +32,11 @@ func _init() -> void:
 
 	display_name = "BRANCH"
 
-	rarity = Trait.Rarity.RARE
+	rarity = Trait.Rarity.UNCOMMON
 
-	cost = 40
+	cost = 70
 
-	sell_price = 20
+	sell_price = 35
 
 	description = (
 		"Any match of 4 or more also clears every same-" +

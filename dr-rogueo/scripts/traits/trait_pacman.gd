@@ -27,9 +27,9 @@ func _init() -> void:
 
 	rarity = Trait.Rarity.RARE
 
-	cost = 40
+	cost = 80
 
-	sell_price = 20
+	sell_price = 40
 
 	description = (
 		"The board's left and right walls wrap into each " +

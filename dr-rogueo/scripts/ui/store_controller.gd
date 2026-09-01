@@ -85,6 +85,46 @@ const DEBUG_DEFAULT := "__DEFAULT__"
 
 
 # ============================================================
+# RESTOCK BUTTON
+# ============================================================
+
+@export_group("Restock Button")
+
+@export var restock_button_path: NodePath = NodePath("RestockButton")
+
+@export var restock_price_font: Font:
+	set(value):
+		restock_price_font = value
+		_queue_editor_preview_update()
+
+@export_range(1, 32, 1)
+var restock_price_font_size := 7:
+	set(value):
+		restock_price_font_size = value
+		_queue_editor_preview_update()
+
+@export var restock_price_color := Color.WHITE:
+	set(value):
+		restock_price_color = value
+		_queue_editor_preview_update()
+
+@export var restock_price_position := Vector2(24, 9):
+	set(value):
+		restock_price_position = value
+		_queue_editor_preview_update()
+
+@export var restock_price_size := Vector2(20, 10):
+	set(value):
+		restock_price_size = value
+		_queue_editor_preview_update()
+
+@export var restock_price_alignment := HORIZONTAL_ALIGNMENT_LEFT:
+	set(value):
+		restock_price_alignment = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
 # ITEM ICON
 # ============================================================
 
@@ -194,22 +234,6 @@ var price_font_size := 7:
 
 
 # ============================================================
-# SLOT LABEL OVERRIDES
-# ============================================================
-
-@export_group("Slot Labels")
-
-@export var slot_labels: Array[String] = [
-	"",
-	"",
-	"",
-	"",
-	"",
-	""
-]
-
-
-# ============================================================
 # ITEM LABEL
 # ============================================================
 
@@ -300,12 +324,24 @@ var _editor_preview_update_queued := false
 
 
 # ============================================================
+# RESTOCK CONSTANTS
+# ============================================================
+
+const RESTOCK_BASE_COST := 1
+const RESTOCK_MAX_COST := 5
+
+
+# ============================================================
 # RUNTIME
 # ============================================================
 
 var board: DrRogueoBoard
 var menu: StoreMenuController
 var store_items: Array[Item] = []
+
+var restock_cost := RESTOCK_BASE_COST
+
+var _restock_price_label: Label = null
 
 var selected_slot := -1
 var last_selected_slot := -1
@@ -811,6 +847,7 @@ func _ensure_editor_preview() -> void:
 	_create_editor_preview()
 
 
+
 func _create_editor_preview() -> void:
 
 	if not Engine.is_editor_hint():
@@ -821,19 +858,35 @@ func _create_editor_preview() -> void:
 
 	_editor_preview_created = true
 
-	var name_label := Label.new()
+	var name_label := get_node_or_null(
+		EDITOR_PREFIX + "Label"
+	) as Label
 
-	name_label.name = EDITOR_PREFIX + "Label"
+	if name_label == null:
+
+		name_label = Label.new()
+		name_label.name = EDITOR_PREFIX + "Label"
+
+		add_child(name_label)
+
 	name_label.text = EDITOR_LABEL_TEXT
 
-	add_child(name_label)
+	var rarity_label := get_node_or_null(
+		EDITOR_PREFIX + "Rarity"
+	) as Label
 
-	var rarity_label := Label.new()
+	if rarity_label == null:
 
-	rarity_label.name = EDITOR_PREFIX + "Rarity"
+		rarity_label = Label.new()
+		rarity_label.name = EDITOR_PREFIX + "Rarity"
+
+		add_child(rarity_label)
+
 	rarity_label.text = EDITOR_RARITY_TEXT
 
-	add_child(rarity_label)
+	# --------------------------------------------------------
+	# ITEM STORE SLOTS
+	# --------------------------------------------------------
 
 	for i in item_slot_paths.size():
 
@@ -849,6 +902,38 @@ func _create_editor_preview() -> void:
 			i
 		)
 
+	# --------------------------------------------------------
+	# TRAIT STORE SLOTS
+	# --------------------------------------------------------
+
+	for i in trait_slot_paths.size():
+
+		var slot := get_node_or_null(
+			trait_slot_paths[i]
+		) as Node2D
+
+		if slot == null:
+			continue
+
+		_create_editor_trait_slot_preview(
+			slot,
+			i
+		)
+
+	# --------------------------------------------------------
+	# RESTOCK
+	# --------------------------------------------------------
+
+	var restock_slot := get_node_or_null(
+		restock_button_path
+	) as Node2D
+
+	if restock_slot != null:
+
+		_create_editor_restock_preview(
+			restock_slot
+		)
+
 	_update_editor_preview()
 
 
@@ -859,31 +944,123 @@ func _create_editor_slot_preview(
 
 	if coin_texture:
 
-		var coin := _create_coin_animation()
-
-		coin.name = (
+		var coin_name := (
 			EDITOR_PREFIX
 			+ "Coin"
 			+ str(slot_index)
 		)
 
+		var coin := slot.get_node_or_null(
+			coin_name
+		) as AnimatedSprite2D
+
+		if coin == null:
+
+			coin = _create_coin_animation()
+			coin.name = coin_name
+
+			slot.add_child(coin)
+
 		coin.position = _pixel_vector(
 			coin_position
 		)
 
-		slot.add_child(coin)
-
-	var price_label := Label.new()
-
-	price_label.name = (
+	var price_name := (
 		EDITOR_PREFIX
 		+ "Price"
 		+ str(slot_index)
 	)
 
+	var price_label := slot.get_node_or_null(
+		price_name
+	) as Label
+
+	if price_label == null:
+
+		price_label = Label.new()
+		price_label.name = price_name
+
+		slot.add_child(price_label)
+
 	price_label.text = EDITOR_PRICE_TEXT
 
-	slot.add_child(price_label)
+
+func _create_editor_trait_slot_preview(
+	slot: Node2D,
+	slot_index: int
+) -> void:
+
+	# --------------------------------------------------------
+	# COIN
+	# --------------------------------------------------------
+
+	if coin_texture:
+
+		var coin_name := (
+			EDITOR_PREFIX
+			+ "TraitCoin"
+			+ str(slot_index)
+		)
+
+		var coin := slot.get_node_or_null(
+			coin_name
+		) as AnimatedSprite2D
+
+		if coin == null:
+
+			coin = _create_coin_animation()
+			coin.name = coin_name
+
+			slot.add_child(coin)
+
+		coin.position = _pixel_vector(
+			trait_coin_position
+		)
+
+	# --------------------------------------------------------
+	# PRICE
+	# --------------------------------------------------------
+
+	var price_name := (
+		EDITOR_PREFIX
+		+ "TraitPrice"
+		+ str(slot_index)
+	)
+
+	var price_label := slot.get_node_or_null(
+		price_name
+	) as Label
+
+	if price_label == null:
+
+		price_label = Label.new()
+		price_label.name = price_name
+
+		slot.add_child(price_label)
+
+	price_label.text = EDITOR_PRICE_TEXT
+
+
+
+
+func _create_editor_restock_preview(
+	slot: Node2D
+) -> void:
+
+	var price_name := EDITOR_PREFIX + "RestockPrice"
+
+	var price_label := slot.get_node_or_null(
+		price_name
+	) as Label
+
+	if price_label == null:
+
+		price_label = Label.new()
+		price_label.name = price_name
+
+		slot.add_child(price_label)
+
+	price_label.text = "%d" % RESTOCK_BASE_COST
 
 
 func _update_editor_preview() -> void:
@@ -940,6 +1117,38 @@ func _update_editor_preview() -> void:
 
 		rarity_label.visible = true
 
+	# --------------------------------------------------------
+	# RESTOCK PREVIEW
+	# --------------------------------------------------------
+
+	var restock_slot := get_node_or_null(
+		restock_button_path
+	) as Node2D
+
+	if restock_slot != null:
+
+		var restock_price := restock_slot.get_node_or_null(
+			EDITOR_PREFIX + "RestockPrice"
+		) as Label
+
+		if restock_price:
+
+			restock_price.text = "%d" % RESTOCK_BASE_COST
+
+			_apply_label_settings(
+				restock_price,
+				restock_price_position,
+				restock_price_size,
+				restock_price_alignment,
+				restock_price_font_size,
+				restock_price_color,
+				restock_price_font
+			)
+
+	# --------------------------------------------------------
+	# ITEM STORE SLOTS
+	# --------------------------------------------------------
+
 	for i in item_slot_paths.size():
 
 		var slot := get_node_or_null(
@@ -981,6 +1190,58 @@ func _update_editor_preview() -> void:
 			_apply_label_settings(
 				price_label,
 				price_position,
+				price_size,
+				price_alignment,
+				price_font_size,
+				price_color,
+				price_font
+			)
+
+	# --------------------------------------------------------
+	# TRAIT STORE SLOTS
+	# --------------------------------------------------------
+
+	for i in trait_slot_paths.size():
+
+		var slot := get_node_or_null(
+			trait_slot_paths[i]
+		) as Node2D
+
+		if slot == null:
+			continue
+
+		var coin := slot.get_node_or_null(
+			EDITOR_PREFIX + "TraitCoin" + str(i)
+		) as AnimatedSprite2D
+
+		if coin:
+
+			coin.position = _pixel_vector(
+				trait_coin_position
+			)
+
+			if coin_texture:
+
+				coin.sprite_frames = (
+					_build_coin_frames()
+				)
+
+				coin.animation = "default"
+				coin.speed_scale = 1.0
+
+				coin.play()
+
+		var price_label := slot.get_node_or_null(
+			EDITOR_PREFIX + "TraitPrice" + str(i)
+		) as Label
+
+		if price_label:
+
+			price_label.text = EDITOR_PRICE_TEXT
+
+			_apply_label_settings(
+				price_label,
+				trait_price_position,
 				price_size,
 				price_alignment,
 				price_font_size,
@@ -1069,6 +1330,10 @@ func _ready() -> void:
 
 	_roll_trait_stock()
 
+	restock_cost = RESTOCK_BASE_COST
+
+	_update_restock_visuals()
+
 	# --------------------------------------------------------
 	# Standalone F6 initialization is deferred so the scene
 	# has finished entering the tree first.
@@ -1079,7 +1344,7 @@ func _ready() -> void:
 	)
 
 	_update_coin_display()
-
+	
 	_update_owned_visuals()
 
 	_update_owned_trait_visuals()
@@ -1613,6 +1878,83 @@ func _fresh_trait(id: String) -> Trait:
 	return null
 
 
+	for trait_item in catalog:
+
+		if trait_item == null:
+			continue
+
+		if str(trait_item.display_name) == clean_id:
+
+			return trait_item
+
+	return null
+
+
+# ============================================================
+# RESTOCK
+# ============================================================
+
+func restock() -> bool:
+
+	if Engine.is_editor_hint():
+		return false
+
+	if get_coins() < restock_cost:
+		return false
+
+	set_coins(
+		get_coins() - restock_cost
+	)
+
+	restock_cost = mini(
+		restock_cost + 1,
+		RESTOCK_MAX_COST
+	)
+
+	_roll_stock()
+
+	_roll_trait_stock()
+
+	_update_coin_display()
+
+	_update_restock_visuals()
+
+	return true
+
+
+func _update_restock_visuals() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	var slot := get_node_or_null(
+		restock_button_path
+	) as Node2D
+
+	if slot == null:
+		return
+
+	if _restock_price_label == null:
+
+		_restock_price_label = Label.new()
+
+		_restock_price_label.name = "RestockPrice"
+
+		slot.add_child(_restock_price_label)
+
+	_restock_price_label.text = "%d" % restock_cost
+
+	_apply_label_settings(
+		_restock_price_label,
+		restock_price_position,
+		restock_price_size,
+		restock_price_alignment,
+		restock_price_font_size,
+		restock_price_color,
+		restock_price_font
+	)
+
+
 # ============================================================
 # STORE SLOT VISUALS
 # ============================================================
@@ -2036,12 +2378,6 @@ func _show_highlighted_info(
 	var display_name: String = (
 		item.display_name
 	)
-
-	if index < slot_labels.size():
-
-		if not slot_labels[index].is_empty():
-
-			display_name = slot_labels[index]
 
 	highlighted_name_label.text = (
 		display_name

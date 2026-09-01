@@ -40,22 +40,22 @@ func _init(
 
 		PillHalf.PillColor.YELLOW:
 
-			color_name = "YELLOW"
+			color_name = "(Y)"
 			icon_path = "res://art/ui/dissolve-icon-yellow.png"
 
 		PillHalf.PillColor.BLUE:
 
-			color_name = "BLUE"
+			color_name = "(B)"
 			icon_path = "res://art/ui/dissolve-icon-blue.png"
 
 		_:
 
-			color_name = "RED"
+			color_name = "(R)"
 
 
 	id = "dissolver_%s" % color_name.to_lower()
 
-	display_name = "%s DISSOLVER" % color_name
+	display_name = "DISSOLVER %s" % color_name
 
 	rarity = Item.Rarity.UNCOMMON
 

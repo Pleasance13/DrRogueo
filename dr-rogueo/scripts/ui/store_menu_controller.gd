@@ -16,6 +16,8 @@ class_name StoreMenuController
 
 @export var buy_button_path: NodePath
 
+@export var restock_button_path: NodePath
+
 @export var store_item_paths: Array[NodePath] = []
 
 @export var store_trait_paths: Array[NodePath] = []
@@ -76,6 +78,7 @@ var store_trait_slots: Array[MenuSelectable] = []
 
 var continue_button: MenuSelectable
 var buy_button: MenuSelectable
+var restock_button: MenuSelectable
 
 var _last_owned_item: MenuSelectable
 var _last_owned_trait: MenuSelectable
@@ -142,6 +145,11 @@ func _ready() -> void:
 
 	buy_button = get_node_or_null(
 		buy_button_path
+	) as MenuSelectable
+
+
+	restock_button = get_node_or_null(
+		restock_button_path
 	) as MenuSelectable
 
 
@@ -565,6 +573,17 @@ func _handle_accept() -> void:
 
 
 	# --------------------------------------------------------
+	# RESTOCK
+	# --------------------------------------------------------
+
+	if current == restock_button:
+
+		_try_restock()
+
+		return
+
+
+	# --------------------------------------------------------
 	# STORE ITEM
 	# --------------------------------------------------------
 
@@ -626,6 +645,21 @@ func _handle_accept() -> void:
 	if current == continue_button:
 
 		continue_pressed.emit()
+
+
+# ============================================================
+# RESTOCK
+# ============================================================
+
+func _try_restock() -> void:
+
+	if store == null:
+		return
+
+	if transaction_mode != TransactionMode.NONE:
+		return
+
+	store.restock()
 
 
 # ============================================================
