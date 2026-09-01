@@ -130,7 +130,7 @@ var restock_price_font_size := 7:
 
 @export_group("Item Icon")
 
-@export var item_icon_position := Vector2(6, 9):
+@export var item_icon_position := Vector2(3, 4):
 	set(value):
 		item_icon_position = value
 		_queue_editor_preview_update()
@@ -2506,7 +2506,7 @@ func show_purchase_preview(
 
 	_purchase_preview_icon.texture = item.icon
 
-	_purchase_preview_icon.position = Vector2(7, 9)
+	_purchase_preview_icon.position = Vector2(4, 6)
 
 	_purchase_preview_slot = owned_slot
 
@@ -2716,7 +2716,7 @@ func _update_owned_visuals() -> void:
 
 		icon.centered = false
 
-		icon.position = Vector2(7, 9)
+		icon.position = Vector2(4, 6)
 
 		slot.add_child(icon)
 

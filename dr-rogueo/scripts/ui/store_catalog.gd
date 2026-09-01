@@ -28,7 +28,8 @@ static func create_catalog() -> Array[Item]:
 		_create_dissolver(PillHalf.PillColor.RED),
 		_create_dissolver(PillHalf.PillColor.YELLOW),
 		_create_dissolver(PillHalf.PillColor.BLUE),
-		_create_ghost()
+		_create_ghost(),
+		_create_snipper()
 	]
 
 
@@ -49,3 +50,6 @@ static func _create_dissolver(color: PillHalf.PillColor) -> Item:
 
 static func _create_ghost() -> Item:
 	return ItemGhost.new()
+
+static func _create_snipper() -> Item:
+	return ItemSnipper.new()

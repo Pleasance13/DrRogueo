@@ -4526,6 +4526,101 @@ func _resolve_pong_break() -> void:
 
 
 # ============================================================
+# SNIPPER ITEM
+# ============================================================
+
+func use_snipper_item() -> bool:
+
+	if transitioning_level:
+		return false
+
+
+	var split_any := _split_all_pills()
+
+	if not split_any:
+		return false
+
+
+	_start_snipper_resolution()
+
+	return true
+
+
+func _split_all_pills() -> bool:
+
+	var processed: Dictionary = {}
+
+	var did_split := false
+
+
+	for cell in occupied_cells.keys():
+
+		var half: PillHalf = (
+			occupied_cells[cell]
+			as PillHalf
+		)
+
+		if half == null:
+			continue
+
+		if processed.has(half):
+			continue
+
+
+		var partner := half.partner_half
+
+		if not is_instance_valid(partner):
+			continue
+
+
+		processed[half] = true
+		processed[partner] = true
+
+
+		half.partner_half = null
+		partner.partner_half = null
+
+		half.pill_state = PillHalf.PillState.SEPARATED
+		partner.pill_state = PillHalf.PillState.SEPARATED
+
+		did_split = true
+
+
+	return did_split
+
+
+func _start_snipper_resolution() -> void:
+
+	if resolving_board:
+		return
+
+
+	resolving_board = true
+
+	_resolve_snipper_split()
+
+
+func _resolve_snipper_split() -> void:
+
+	await apply_gravity()
+
+	var level_cleared := await _resolve_matches_and_gravity()
+
+
+	resolving_board = false
+
+
+	if level_cleared:
+
+		await advance_to_next_level()
+
+		return
+
+
+	spawn_pill()
+
+
+# ============================================================
 # SEPARATE MATCH PARTNERS
 # ============================================================
 

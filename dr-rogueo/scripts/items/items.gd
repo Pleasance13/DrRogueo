@@ -182,7 +182,7 @@ func _setup_slot_sprites() -> void:
 			icon_sprite = Sprite2D.new()
 			icon_sprite.name = "ItemIcon"
 			icon_sprite.centered = true
-			icon_sprite.position = Vector2(-1, -1)
+			icon_sprite.position = Vector2(0, 0)
 
 			slot.add_child(icon_sprite)
 

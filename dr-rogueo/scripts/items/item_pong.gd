@@ -13,7 +13,7 @@ extends Item
 # ============================================================
 
 const PONG_TEXTURE_PATH := "res://art/pills/pong.png"
-const PONG_ICON_PATH := "res://art/ui/pong-icon-temp.png"
+const PONG_ICON_PATH := "res://art/ui/pong-icon.png"
 
 func _init() -> void:
 

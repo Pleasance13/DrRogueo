@@ -30,7 +30,7 @@ region_enabled = true
 region_rect = Rect2(0, 0, 28, 28)
 
 [node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-X"]
-position = Vector2(-1, -1)
+position = Vector2(-2, -2)
 
 [node name="Item-Slot-Y" type="Sprite2D" parent="Item-Slots"]
 position = Vector2(28, 0)
@@ -39,7 +39,7 @@ region_enabled = true
 region_rect = Rect2(28, 0, 28, 28)
 
 [node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-Y"]
-position = Vector2(-1, -1)
+position = Vector2(-2, -2)
 
 [node name="Item-Slot-B" type="Sprite2D" parent="Item-Slots"]
 position = Vector2(56, 0)
@@ -48,7 +48,7 @@ region_enabled = true
 region_rect = Rect2(56, 0, 28, 28)
 
 [node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-B"]
-position = Vector2(-1, -1)
+position = Vector2(-2, -2)
 
 [node name="Item-Preview" type="Sprite2D" parent="."]
 position = Vector2(228, 120)

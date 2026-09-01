@@ -34,11 +34,11 @@ func _init() -> void:
 
 	display_name = "GHOST PILL"
 
-	rarity = Item.Rarity.UNCOMMON
+	rarity = Item.Rarity.COMMON
 
-	cost = 20
+	cost = 10
 
-	sell_price = 10
+	sell_price = 5
 
 	description = (
 		"The next pill can turn into a ghost. Press A while " +
