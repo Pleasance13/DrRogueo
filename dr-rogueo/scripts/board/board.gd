@@ -279,6 +279,10 @@ func _debug_trait_dropdown_value_to_id(value: String) -> String:
 # start of a new stage (not every level).
 const LEVELS_PER_STAGE := 3
 
+# Levels 1-9 are the 3 normal stages; level 10 is the boss
+# fight (Stage 4), and clearing it ends the run.
+const BOSS_LEVEL := 3 * LEVELS_PER_STAGE + 1
+
 const COINS_PER_VIRUS := 1
 
 var coins := 0
@@ -385,6 +389,12 @@ var resolving_board := false
 # Active Pong Paddle item minigame, or null when none is running.
 var pong_controller: PongController = null
 
+# Active boss fight controller, or null outside the boss level.
+var boss_controller: Boss1Controller = null
+
+# Cells permanently occupied by the boss's own body.
+var boss_blocked_cells: Dictionary = {}
+
 # Vector2i -> PillHalf
 var occupied_cells: Dictionary = {}
 
@@ -449,8 +459,8 @@ func _ready() -> void:
 	# Then turn that preview into the active pill.
 	spawn_pill()
 
-	# Finally populate the board.
-	generate_starting_viruses()
+	# Finally populate the board (or set up the boss fight).
+	_setup_level_content()
 
 
 # ============================================================
@@ -1226,6 +1236,19 @@ func advance_to_next_level() -> void:
 
 
 	# ========================================================
+	# BOSS FIGHT JUST ENDED?
+	# ========================================================
+
+	var was_boss_level: bool = boss_controller != null
+
+	if was_boss_level:
+
+		boss_controller.queue_free()
+		boss_controller = null
+		boss_blocked_cells.clear()
+
+
+	# ========================================================
 	# BLACK SCREEN
 	# ========================================================
 
@@ -1247,6 +1270,19 @@ func advance_to_next_level() -> void:
 	# ========================================================
 
 	level += 1
+
+
+	# ========================================================
+	# END OF RUN (BOSS DEFEATED)
+	# ========================================================
+
+	if was_boss_level:
+
+		transitioning_level = false
+
+		_end_run()
+
+		return
 
 
 	# ========================================================
@@ -1286,10 +1322,10 @@ func advance_to_next_level() -> void:
 
 
 	# ========================================================
-	# GENERATE NEW VIRUSES
+	# GENERATE NEW VIRUSES (OR SET UP THE BOSS FIGHT)
 	# ========================================================
 
-	generate_starting_viruses()
+	_setup_level_content()
 
 
 	# ========================================================
@@ -1710,11 +1746,108 @@ func generate_starting_viruses() -> void:
 
 
 # ============================================================
+# BOSS FIGHT SETUP / TEARDOWN
+# ============================================================
+
+func _setup_level_content() -> void:
+
+	if level == BOSS_LEVEL:
+		_start_boss_level()
+	else:
+		generate_starting_viruses()
+
+
+func _start_boss_level() -> void:
+
+	clear_virus_cells()
+
+	boss_blocked_cells.clear()
+
+	var boss_col := BOARD_WIDTH / 2 - 1
+	var boss_row := BOARD_HEIGHT - 2
+
+	for col in range(boss_col, boss_col + 2):
+		for row in range(boss_row, boss_row + 2):
+			boss_blocked_cells[Vector2i(col, row)] = true
+
+	# Boss1Controller is a persistent node in Main.tscn.
+	# Find that existing node instead of creating a new one.
+	boss_controller = get_tree().get_first_node_in_group(
+		"boss_1_controller"
+	) as Boss1Controller
+
+	if boss_controller == null:
+		boss_controller = get_node_or_null("../Boss1Controller") as Boss1Controller
+
+	if boss_controller == null:
+		push_error(
+			"Board: Could not find the Boss1Controller node in Main.tscn."
+		)
+		return
+
+	# Draw above Board_Frame/Board_Frame_Glass/Board_Grid/
+	# PacmanEffect (indices 0-3) but below anything spawned
+	# after this (pills, viruses, items).
+	var parent := boss_controller.get_parent()
+
+	if parent != null:
+		parent.move_child(
+			boss_controller,
+			min(4, parent.get_child_count() - 1)
+		)
+
+	boss_controller.start(self, boss_col, boss_row)
+
+
+func _no_more_enemies() -> bool:
+
+	if boss_controller != null:
+		return boss_controller.defeated
+
+	return virus_cells.is_empty()
+
+
+func boss_clear_indicator_cell(cell: Vector2i) -> void:
+
+	if not occupied_cells.has(cell):
+		return
+
+	var half := occupied_cells[cell] as PillHalf
+
+	occupied_cells.erase(cell)
+
+	if not is_instance_valid(half):
+		return
+
+	var partner := half.partner_half
+
+	if is_instance_valid(partner):
+
+		partner.partner_half = null
+		half.partner_half = null
+		partner.pill_state = PillHalf.PillState.SEPARATED
+
+	half.pill_state = PillHalf.PillState.VANISHING
+
+	vanishing_halves[half] = VANISH_DURATION
+
+
+func _end_run() -> void:
+
+	game_over_label.text = "RUN CLEARED!"
+	game_over_label.visible = true
+
+	game_over = true
+	game_over_timer = 0.0
+
+	set_transition_black(true)
+
+
+# ============================================================
 # CLEAR VIRUSES
 # ============================================================
 
 func clear_virus_cells() -> void:
-
 	for virus in virus_cells.values():
 
 		if is_instance_valid(virus):
@@ -2297,6 +2430,9 @@ func is_cell_filled(
 		return true
 
 	if tether_cells.has(cell):
+		return true
+
+	if boss_blocked_cells.has(cell):
 		return true
 
 	return false
@@ -3275,7 +3411,7 @@ func solidify_ghost_pill() -> void:
 	fall_timer = 0.0
 
 
-	if destroyed_something and virus_cells.is_empty():
+	if destroyed_something and _no_more_enemies():
 
 		_finish_level_after_ghost_clear()
 
@@ -3835,6 +3971,34 @@ func _resolve_matches_and_gravity() -> bool:
 
 	while true:
 
+		# ========================================================
+		# BOSS CHECK
+		#
+		# Boss indicators have priority over normal matches.
+		#
+		# This is especially important with Pac-Man wraparound:
+		# the indicator cells can form a normal 4-match, but if
+		# every indicator is correctly filled, that combination
+		# belongs to the boss instead.
+		# ========================================================
+
+		if boss_controller != null:
+
+			var boss_hit: bool = await boss_controller.check_indicators()
+
+			if _no_more_enemies():
+
+				return true
+
+			if boss_hit:
+
+				continue
+
+
+		# ========================================================
+		# NORMAL MATCH / TETRIS CHECK
+		# ========================================================
+
 		var matches := find_matches()
 
 		var tetris_rows := _find_full_rows_for_tetris_trait()
@@ -3844,6 +4008,10 @@ func _resolve_matches_and_gravity() -> bool:
 
 			return false
 
+
+		# ========================================================
+		# MERGE TETRIS ROWS INTO MATCHES
+		# ========================================================
 
 		if not tetris_rows.is_empty():
 
@@ -3864,18 +4032,36 @@ func _resolve_matches_and_gravity() -> bool:
 				matches.append(cell)
 
 
+		# ========================================================
+		# BRANCH TRAIT
+		# ========================================================
+
 		matches = _expand_matches_for_branch_trait(matches)
 
+
+		# ========================================================
+		# DISSOLVER PILL
+		# ========================================================
+
 		matches = _expand_matches_for_dissolvers(matches)
+
+
+		# ========================================================
+		# SEPARATE PILL PARTNERS
+		# ========================================================
 
 		separate_partners_of_matches(matches)
 
 
+		# ========================================================
+		# CLEAR MATCHED CELLS
+		# ========================================================
+
 		for cell in matches:
 
-			# ========================================================
+			# ====================================================
 			# PILL HALF
-			# ========================================================
+			# ====================================================
 
 			var half: PillHalf = (
 				occupied_cells.get(cell)
@@ -3898,9 +4084,9 @@ func _resolve_matches_and_gravity() -> bool:
 				continue
 
 
-			# ========================================================
+			# ====================================================
 			# VIRUS
-			# ========================================================
+			# ====================================================
 
 			var virus: Virus = (
 				virus_cells.get(cell)
@@ -3925,9 +4111,9 @@ func _resolve_matches_and_gravity() -> bool:
 				continue
 
 
-			# ========================================================
+			# ====================================================
 			# TETHER
-			# ========================================================
+			# ====================================================
 
 			var tether: Tether = (
 				tether_cells.get(cell)
@@ -3958,7 +4144,7 @@ func _resolve_matches_and_gravity() -> bool:
 		# LEVEL CLEAR
 		# ========================================================
 
-		if virus_cells.is_empty():
+		if _no_more_enemies():
 
 			return true
 
@@ -4496,7 +4682,7 @@ func _resolve_pong_break() -> void:
 	await wait_for_vanishing_halves()
 
 
-	var level_cleared := virus_cells.is_empty()
+	var level_cleared := _no_more_enemies()
 
 
 	if not level_cleared:
@@ -4618,6 +4804,149 @@ func _resolve_snipper_split() -> void:
 
 
 	spawn_pill()
+
+
+# ============================================================
+# SWEEP ITEM
+# ============================================================
+
+const SWEEP_ROW_DELAY := 0.05
+
+
+func use_sweep_item() -> bool:
+
+	if transitioning_level:
+		return false
+
+
+	var separated_cells := _get_separated_pill_cells()
+
+	if separated_cells.is_empty():
+		return false
+
+
+	_start_sweep_resolution(separated_cells)
+
+	return true
+
+
+func _get_separated_pill_cells() -> Array[Vector2i]:
+
+	var result: Array[Vector2i] = []
+
+
+	for cell in occupied_cells.keys():
+
+		var half: PillHalf = (
+			occupied_cells[cell]
+			as PillHalf
+		)
+
+		if half == null:
+			continue
+
+		if half.pill_state != PillHalf.PillState.SEPARATED:
+			continue
+
+		result.append(cell)
+
+
+	return result
+
+
+func _start_sweep_resolution(
+	cells: Array[Vector2i]
+) -> void:
+
+	if resolving_board:
+		return
+
+
+	resolving_board = true
+
+	_resolve_sweep(cells)
+
+
+func _resolve_sweep(
+	cells: Array[Vector2i]
+) -> void:
+
+	await _sweep_clear_cascade(cells)
+
+	await wait_for_vanishing_halves()
+
+	await apply_gravity()
+
+	var level_cleared := await _resolve_matches_and_gravity()
+
+
+	resolving_board = false
+
+
+	if level_cleared:
+
+		await advance_to_next_level()
+
+		return
+
+
+	spawn_pill()
+
+
+# ============================================================
+# SWEEP CASCADE (TOP TO BOTTOM)
+# ============================================================
+
+func _sweep_clear_cascade(
+	cells: Array[Vector2i]
+) -> void:
+
+	var rows: Dictionary = {}
+
+
+	for cell in cells:
+
+		if not rows.has(cell.y):
+
+			rows[cell.y] = []
+
+		(rows[cell.y] as Array).append(cell)
+
+
+	var sorted_rows: Array = rows.keys()
+
+	sorted_rows.sort()
+
+
+	for i in range(sorted_rows.size()):
+
+		var row: int = sorted_rows[i]
+
+		var row_cells: Array = rows[row]
+
+
+		for cell in row_cells:
+
+			var half: PillHalf = (
+				occupied_cells.get(cell)
+				as PillHalf
+			)
+
+			if half == null:
+				continue
+
+			occupied_cells.erase(cell)
+
+			half.pill_state = PillHalf.PillState.VANISHING
+
+			vanishing_halves[half] = VANISH_DURATION
+
+
+		if i < sorted_rows.size() - 1:
+
+			await get_tree().create_timer(
+				SWEEP_ROW_DELAY
+			).timeout
 
 
 # ============================================================
@@ -5229,6 +5558,11 @@ func gravity_unit_can_fall(
 
 
 		if tether_cells.has(destination):
+
+			return false
+
+
+		if boss_blocked_cells.has(destination):
 
 			return false
 

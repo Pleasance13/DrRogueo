@@ -40,3 +40,14 @@ func get_rarity_name() -> String:
 		Rarity.EPIC: return "EPIC"
 
 	return "COMMON"
+
+
+const RARITY_BASE_WEIGHT := {
+	Rarity.COMMON: 5.0,
+	Rarity.UNCOMMON: 4.0,
+	Rarity.RARE: 2.0,
+	Rarity.EPIC: 1.0
+}
+
+func get_shop_weight() -> float:
+	return RARITY_BASE_WEIGHT.get(rarity, 1.0) * rarity_weight

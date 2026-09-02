@@ -1734,14 +1734,38 @@ func _random_item(
 	if valid_items.is_empty():
 		return null
 
-	var index: int = randi_range(
-		0,
-		valid_items.size() - 1
-	)
 
-	return _fresh_item(
-		valid_items[index].id
-	)
+	var total_weight := 0.0
+
+	for item in valid_items:
+
+		total_weight += item.get_shop_weight()
+
+
+	if total_weight <= 0.0:
+
+		var index: int = randi_range(
+			0,
+			valid_items.size() - 1
+		)
+
+		return _fresh_item(valid_items[index].id)
+
+
+	var roll := randf() * total_weight
+
+	var running := 0.0
+
+	for item in valid_items:
+
+		running += item.get_shop_weight()
+
+		if roll < running:
+
+			return _fresh_item(item.id)
+
+
+	return _fresh_item(valid_items[-1].id)
 
 
 func _fresh_item(id: String) -> Item:
@@ -1787,6 +1811,7 @@ func _fresh_item(id: String) -> Item:
 # ============================================================
 # TRAIT STOCK
 # ============================================================
+
 func _roll_trait_stock() -> void:
 
 	if Engine.is_editor_hint():
@@ -1801,16 +1826,6 @@ func _roll_trait_stock() -> void:
 	if catalog.is_empty():
 		return
 
-
-	# --------------------------------------------------------
-	# SAMPLE WITHOUT REPLACEMENT
-	#
-	# Traits are never duplicated on the shelf -- once one is
-	# picked for a slot, it's removed from the pool for the
-	# remaining slots. If there are more slots than trait
-	# types in the catalog, the leftover slots are left empty
-	# rather than repeating anything.
-	# --------------------------------------------------------
 
 	var available: Array[Trait] = []
 
@@ -1830,14 +1845,48 @@ func _roll_trait_stock() -> void:
 			continue
 
 
-		var index: int = randi_range(
-			0,
-			available.size() - 1
-		)
+		var total_weight := 0.0
 
-		var picked := available[index]
+		for trait_item in available:
 
-		available.remove_at(index)
+			total_weight += trait_item.get_shop_weight()
+
+
+		var picked: Trait
+		var picked_index := 0
+
+
+		if total_weight <= 0.0:
+
+			picked_index = randi_range(
+				0,
+				available.size() - 1
+			)
+
+			picked = available[picked_index]
+
+		else:
+
+			var roll := randf() * total_weight
+
+			var running := 0.0
+
+			picked = available[available.size() - 1]
+
+			for i in range(available.size()):
+
+				running += available[i].get_shop_weight()
+
+				if roll < running:
+
+					picked_index = i
+
+					picked = available[i]
+
+					break
+
+
+		available.remove_at(picked_index)
 
 		store_traits.append(
 			_fresh_trait(picked.id)

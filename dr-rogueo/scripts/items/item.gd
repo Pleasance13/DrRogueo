@@ -39,6 +39,26 @@ func get_rarity_name() -> String:
 		Rarity.EPIC: return "EPIC"
 	return "COMMON"
 
+
+# ============================================================
+# SHOP WEIGHT
+# ============================================================
+#
+# Base odds by rarity tier. rarity_weight (export, default 1.0)
+# multiplies on top of this, so individual items can still be
+# tuned without touching every other item's numbers.
+#
+const RARITY_BASE_WEIGHT := {
+	Rarity.COMMON: 5.0,
+	Rarity.UNCOMMON: 4.0,
+	Rarity.RARE: 2.0,
+	Rarity.EPIC: 1.0
+}
+
+func get_shop_weight() -> float:
+	return RARITY_BASE_WEIGHT.get(rarity, 1.0) * rarity_weight
+
+
 @export var replaces_next_pill := false
 
 func on_queue(board: DrRogueoBoard) -> void:

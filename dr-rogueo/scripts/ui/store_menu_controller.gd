@@ -689,25 +689,14 @@ func _move(
 			else owned_trait_slots
 		)
 
-		var next_owned := current.get_neighbor(
+		var next_owned := _find_next_empty_owned_slot(
+			current,
 			dir
-		) as MenuSelectable
+		)
 
-		if next_owned and next_owned in owned_slots:
+		if next_owned:
 
-			var index := owned_slots.find(
-				next_owned
-			)
-
-			var slot_empty := (
-				_is_owned_slot_empty(index)
-				if transaction_kind == TransactionKind.ITEM
-				else _is_owned_trait_slot_empty(index)
-			)
-
-			if slot_empty:
-
-				_select(next_owned)
+			_select(next_owned)
 
 		return
 
@@ -770,6 +759,65 @@ func _move(
 	if next:
 
 		_select(next)
+
+
+# ============================================================
+# FIND NEXT EMPTY OWNED SLOT (SKIPPING FILLED ONES)
+# ============================================================
+
+func _find_next_empty_owned_slot(
+	from: MenuSelectable,
+	dir: int
+) -> MenuSelectable:
+
+	var owned_slots := (
+		owned_item_slots
+		if transaction_kind == TransactionKind.ITEM
+		else owned_trait_slots
+	)
+
+	var node := from
+
+	var visited: Dictionary = {}
+
+
+	while true:
+
+		var next := node.get_neighbor(dir) as MenuSelectable
+
+		if next == null:
+
+			return null
+
+
+		if visited.has(next):
+
+			return null
+
+		visited[next] = true
+
+
+		var index := owned_slots.find(next)
+
+		if index == -1:
+
+			return null
+
+
+		var slot_empty := (
+			_is_owned_slot_empty(index)
+			if transaction_kind == TransactionKind.ITEM
+			else _is_owned_trait_slot_empty(index)
+		)
+
+		if slot_empty:
+
+			return next
+
+
+		node = next
+
+	return null
 
 
 # ============================================================
