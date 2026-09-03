@@ -17,6 +17,14 @@ extends Resource
 @export var display_name: String = ""
 @export_multiline var description: String = ""
 @export var icon: Texture2D
+@export var preview: Texture2D   # NEW
+
+const TEMP_PREVIEW_PATH := "res://art/ui/temp-preview.png"
+
+static func _load_preview(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		return load(path)
+	return load(TEMP_PREVIEW_PATH)
 
 enum Rarity {
 	COMMON,

@@ -279,9 +279,9 @@ func _ready() -> void:
 
 func _on_anim_frame_changed(_frame: int) -> void:
 
-	if is_ghosting:
+	if is_ghosting or is_ghost_pill:
 
-		queue_redraw()
+		_update_pill()
 
 
 # ============================================================
@@ -370,7 +370,13 @@ func _update_pill() -> void:
 	# GHOST VISUAL
 	# ========================================================
 
-	if is_ghosting:
+	var show_ghost_look := is_ghosting
+
+	if is_ghost_pill and not is_ghosting:
+		var frame := 0 if Engine.is_editor_hint() else AnimClock.frame
+		show_ghost_look = (frame == 1)
+
+	if show_ghost_look:
 
 		if half_1 != null:
 			half_1.visible = false
@@ -556,8 +562,14 @@ func _draw() -> void:
 
 		return
 
+	var show_ghost_look := is_ghosting
 
-	if is_ghosting:
+	if is_ghost_pill and not is_ghosting:
+
+		var frame := 0 if Engine.is_editor_hint() else AnimClock.frame
+		show_ghost_look = (frame == 1)
+
+	if show_ghost_look:
 
 		_draw_ghost()
 

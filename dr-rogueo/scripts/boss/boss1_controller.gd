@@ -753,7 +753,12 @@ func _on_magnifier_frame_changed(
 
 func _find_magnifier_slot_in_editor() -> Node2D:
 
-	var scene_root := get_tree().edited_scene_root
+	var scene_tree := get_tree()
+
+	if scene_tree == null:
+		return null
+
+	var scene_root := scene_tree.edited_scene_root
 
 	if scene_root == null:
 		return null
@@ -775,6 +780,9 @@ func _create_editor_magnifier_preview() -> void:
 	if not Engine.is_editor_hint():
 		return
 
+	if not is_inside_tree():
+		return
+
 	if (
 		_editor_magnifier_root != null
 		and is_instance_valid(
@@ -787,64 +795,6 @@ func _create_editor_magnifier_preview() -> void:
 
 	if slot == null:
 		return
-
-	_editor_magnifier_root = Node2D.new()
-	_editor_magnifier_root.name = (
-		"Boss1MagnifierPreview"
-	)
-
-	slot.add_child(
-		_editor_magnifier_root
-	)
-
-	# --------------------------------------------------------
-	# Gradient
-	# --------------------------------------------------------
-
-	_editor_magnifier_gradient = Sprite2D.new()
-
-	_editor_magnifier_gradient.name = "Gradient"
-	_editor_magnifier_gradient.centered = false
-	_editor_magnifier_gradient.texture = load(
-		GRADIENT_TEXTURE_PATH
-	)
-
-	_editor_magnifier_root.add_child(
-		_editor_magnifier_gradient
-	)
-
-	# --------------------------------------------------------
-	# Boss
-	# --------------------------------------------------------
-
-	_editor_magnifier_boss = Sprite2D.new()
-
-	_editor_magnifier_boss.name = "Boss"
-	_editor_magnifier_boss.centered = false
-	_editor_magnifier_boss.texture = load(
-		MAGNIFIER_BOSS_TEXTURE_PATH
-	)
-
-	_editor_magnifier_boss.hframes = 2
-	_editor_magnifier_boss.vframes = 1
-
-	_editor_magnifier_root.add_child(
-		_editor_magnifier_boss
-	)
-
-	# --------------------------------------------------------
-	# Healthbar
-	# --------------------------------------------------------
-
-	_editor_magnifier_healthbar = Boss1Healthbar.new()
-
-	_editor_magnifier_healthbar.name = "Healthbar"
-
-	_editor_magnifier_root.add_child(
-		_editor_magnifier_healthbar
-	)
-
-	_update_editor_magnifier()
 
 
 func _update_editor_magnifier() -> void:

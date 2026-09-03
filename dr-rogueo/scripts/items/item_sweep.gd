@@ -25,6 +25,8 @@ func _init() -> void:
 
 	display_name = "SWEEP"
 
+	preview = Item._load_preview("res://art/ui/sweep-preview.png")
+
 	rarity = Item.Rarity.UNCOMMON
 
 	cost = 20
@@ -32,8 +34,8 @@ func _init() -> void:
 	sell_price = 10
 
 	description = (
-		"Clears every separated (unpaired) pill half on the " +
-		"board, cascading top to bottom. Viruses and connected " +
+		"Clears every separated pill half on the board, " +
+		"cascading top to bottom. Viruses and connected " +
 		"pill halves are untouched."
 	)
 

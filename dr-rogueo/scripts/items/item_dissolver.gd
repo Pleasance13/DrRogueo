@@ -35,6 +35,7 @@ func _init(
 
 	var color_name := "RED"
 	var icon_path := "res://art/ui/dissolve-icon-red.png"
+	preview = Item._load_preview("res://art/ui/temp-preview.png")
 
 	match color:
 
@@ -42,11 +43,13 @@ func _init(
 
 			color_name = "(Y)"
 			icon_path = "res://art/ui/dissolve-icon-yellow.png"
+			preview = Item._load_preview("res://art/ui/temp-preview.png")
 
 		PillHalf.PillColor.BLUE:
 
 			color_name = "(B)"
 			icon_path = "res://art/ui/dissolve-icon-blue.png"
+			preview = Item._load_preview("res://art/ui/temp-preview.png")
 
 		_:
 
@@ -64,11 +67,11 @@ func _init(
 	sell_price = 10
 
 	description = (
-		"A %s pill. Once it lands in a valid match, every %s " +
-		"pill half on the board clears along with it. Viruses " +
-		"are untouched unless they were part of the original " +
+		"A dissolver pill. Once it lands in a valid match, every " +
+		"pill half on the board of its color clears along with it. " +
+		"Viruses are untouched unless they were part of the original " +
 		"match."
-	) % [color_name.to_lower(), color_name.to_lower()]
+	)
 
 	replaces_next_pill = true
 

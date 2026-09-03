@@ -31,6 +31,8 @@ func _init() -> void:
 
 	display_name = "TETRIS"
 
+	preview = Item._load_preview("res://art/ui/temp-preview.png")
+
 	rarity = Trait.Rarity.EPIC
 
 	cost = 90

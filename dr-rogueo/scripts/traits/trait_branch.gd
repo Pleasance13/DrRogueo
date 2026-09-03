@@ -32,6 +32,8 @@ func _init() -> void:
 
 	display_name = "BRANCH"
 
+	preview = Item._load_preview("res://art/ui/temp-preview.png")
+
 	rarity = Trait.Rarity.UNCOMMON
 
 	cost = 70

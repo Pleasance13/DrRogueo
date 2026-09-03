@@ -230,21 +230,21 @@ func _set_slot_frame(
 # PREVIEW
 # ============================================================
 
-func _setup_preview() -> void:
+var preview_icon: Sprite2D
 
+func _setup_preview() -> void:
 	if preview_sprite == null:
 		return
-
 	preview_sprite.region_enabled = true
-
-	preview_sprite.region_rect = Rect2(
-		PREVIEW_COL_X[0],
-		0,
-		PREVIEW_COL_W,
-		PREVIEW_H
-	)
-
+	preview_sprite.region_rect = Rect2(PREVIEW_COL_X[0], 0, PREVIEW_COL_W, PREVIEW_H)
 	preview_sprite.visible = true
+
+	preview_icon = Sprite2D.new()
+	preview_icon.name = "PreviewIcon"
+	preview_icon.centered = true
+	preview_icon.position = Vector2(PREVIEW_COL_W / 2.0, PREVIEW_H / 2.0)
+	preview_icon.visible = false
+	preview_sprite.add_child(preview_icon)
 
 
 # ============================================================
@@ -456,6 +456,17 @@ func _refresh() -> void:
 
 	var preview_frame := 0
 
+	var item: Item = (
+		Inventory.items[selected_slot]
+		if selected_slot >= 0 and selected_slot < Inventory.items.size()
+		else null
+	)
+	if item != null and item.preview != null:
+		preview_icon.texture = item.preview
+		preview_icon.visible = true
+	else:
+		preview_icon.visible = false
+
 	if (
 		selected_slot >= 0
 		and selected_slot < SLOT_COUNT
@@ -469,6 +480,20 @@ func _refresh() -> void:
 		PREVIEW_COL_W,
 		PREVIEW_H
 	)
+
+	if board != null and board.clipboard != null:
+		var highlighted_item: Item = (
+			Inventory.items[selected_slot]
+			if selected_slot >= 0 and selected_slot < Inventory.items.size()
+			else null
+		)
+		if highlighted_item != null:
+			board.clipboard.show_description(
+				highlighted_item.display_name,
+				highlighted_item.description
+			)
+		else:
+			board.clipboard.hide_description()
 
 
 	# --------------------------------------------------------

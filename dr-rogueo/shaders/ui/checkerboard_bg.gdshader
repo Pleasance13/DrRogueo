@@ -8,6 +8,7 @@ shader_type canvas_item;
 uniform float wave_width = 3.0;
 uniform float wave_depth = 0.025;
 uniform float wave_speed = 0.25;
+uniform float shader_time = 0.0;
 
 
 // ============================================================
@@ -168,7 +169,7 @@ void fragment() {
 
 	vec2 uv = original_uv;
 
-	float t = TIME * wave_speed;
+	float t = shader_time * wave_speed;
 
 	// Higher width = wider waves.
 	float noise_frequency = 12.0 / wave_width;

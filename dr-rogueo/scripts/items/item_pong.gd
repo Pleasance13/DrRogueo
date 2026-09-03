@@ -21,6 +21,8 @@ func _init() -> void:
 
 	display_name = "PONG PILL"
 
+	preview = Item._load_preview("res://art/ui/pong-preview.png")
+
 	rarity = Item.Rarity.EPIC
 
 	cost = 50
@@ -28,12 +30,11 @@ func _init() -> void:
 	sell_price = 25
 
 	description = (
-		"Summons a paddle at the top of the board that stays " +
-		"until you miss. Move it with left/right; press down to " +
-		"launch the ball into the board. 3 hits break a virus or " +
+		"Summons a paddle at the top of the board. " +
+		"Move it with left/right; press A to launch " +
+		"the ball into the board. 3 hits break a virus or " +
 		"pill. Breaking a tile keeps a combo timer alive - let it " +
-		"run out, or miss the ball, and the minigame ends. Pill " +
-		"falling pauses the whole time."
+		"run out, or miss the ball, and the minigame ends."
 	)
 
 	#replaces_next_pill = true

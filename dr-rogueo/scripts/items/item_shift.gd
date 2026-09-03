@@ -26,6 +26,8 @@ func _init() -> void:
 
 	display_name = "SHIFT PILL"
 
+	preview = Item._load_preview("res://art/ui/temp-preview.png")
+
 	rarity = Item.Rarity.UNCOMMON
 
 	cost = 20
@@ -33,7 +35,7 @@ func _init() -> void:
 	sell_price = 10
 
 	description = (
-		"Rotate it like a normal pill before it lands. The " +
+		"Rotate it before it lands to choose a direction. The " +
 		"instant it settles, gravity shifts board-wide toward " +
 		"the arrow until everything stops moving, then reverts " +
 		"back to normal gravity."

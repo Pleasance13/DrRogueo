@@ -111,6 +111,13 @@ var _runtime_initialized: bool = false
 
 
 # ============================================================
+# SHADER TIME
+# ============================================================
+
+var _shader_time: float = 0.0
+
+
+# ============================================================
 # SHADING
 # ============================================================
 
@@ -193,6 +200,28 @@ func _ready() -> void:
 	call_deferred(
 		"_initialize_runtime"
 	)
+
+
+# ============================================================
+# PROCESS
+# ============================================================
+
+func _process(delta: float) -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+
+	# --------------------------------------------------------
+	# Advance our own shader clock.
+	#
+	# This node uses the normal PAUSABLE process mode, so
+	# this automatically stops when the SceneTree is paused.
+	# --------------------------------------------------------
+
+	_shader_time += delta
+
+	_update_shader_time()
 
 
 # ============================================================
@@ -453,6 +482,36 @@ func get_runtime_preset_index() -> int:
 
 
 # ============================================================
+# UPDATE SHADER TIME
+# ============================================================
+
+func _update_shader_time() -> void:
+
+	var checkerboard := _get_checkerboard()
+
+	if checkerboard == null:
+		return
+
+
+	var material := checkerboard.material
+
+	if not material:
+		return
+
+	if not material is ShaderMaterial:
+		return
+
+
+	var shader_material := material as ShaderMaterial
+
+
+	shader_material.set_shader_parameter(
+		"shader_time",
+		_shader_time
+	)
+
+
+# ============================================================
 # UPDATE SHADER
 # ============================================================
 
@@ -489,6 +548,11 @@ func _update_shader() -> void:
 	shader_material.set_shader_parameter(
 		"wave_speed",
 		wave_speed
+	)
+
+	shader_material.set_shader_parameter(
+		"shader_time",
+		_shader_time
 	)
 
 	shader_material.set_shader_parameter(

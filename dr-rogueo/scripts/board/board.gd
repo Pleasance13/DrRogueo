@@ -410,6 +410,14 @@ var vanishing_halves: Dictionary = {}
 var _z_was_pressed := false
 var _x_was_pressed := false
 
+const HORIZONTAL_REPEAT_INTERVAL := float(SOFT_DROP_FRAMES * 2) / 60.0  # half speed of soft drop
+
+var _left_hold_timer := 0.0
+var _right_hold_timer := 0.0
+
+var is_paused := false
+var pause_label: Label
+
 var _soft_dropping := false
 
 var rng := RandomNumberGenerator.new()
@@ -429,6 +437,7 @@ func _ready() -> void:
 	create_transition_overlay()
 	create_game_over_label()
 	create_level_transition_label()
+	_create_pause_label()
 
 	# ========================================================
 	# HUD NODES
@@ -567,6 +576,39 @@ func _fresh_debug_trait(id: String) -> Trait:
 	return null
 
 
+func _create_pause_label() -> void:
+	
+	pause_label = Label.new()
+	
+	pause_label.name = "PauseLabel"
+	
+	pause_label.text = "PAUSED"
+	
+	pause_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	
+	pause_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	
+	pause_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	
+	pause_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	
+	if game_over_font != null:
+		pause_label.add_theme_font_override("font", game_over_font)
+	
+	pause_label.add_theme_font_size_override("font_size", game_over_font_size)
+	
+	pause_label.add_theme_color_override("font_color", game_over_font_color)
+	
+	pause_label.visible = false
+	
+	transition_layer.add_child(pause_label)
+
+
+func set_pause_label_visible(visible: bool) -> void:
+
+	if pause_label != null:
+		pause_label.visible = visible
+
 # ============================================================
 # PROCESS
 # ============================================================
@@ -657,7 +699,7 @@ func _process(delta: float) -> void:
 		return
 
 
-	_handle_input()
+	_handle_input(delta)
 
 	if current_pill == null:
 		return
@@ -2232,10 +2274,32 @@ func spawn_pill() -> void:
 
 
 	# ========================================================
+	# ACTIVE PILL DRAW ORDER
+	# ========================================================
+	#
+	# The falling pill must always render in front of settled
+	# board cells. Without an explicit z_index, its draw order
+	# can depend on scene-tree ordering and cause Ghost's
+	# _draw() visual to appear behind existing cells.
+	#
+	# This applies to the active pill regardless of item type.
+	# The z_index is only for the falling Pill node; settled
+	# halves are reparented directly to the Board when the pill
+	# locks, so they retain the normal settled-cell ordering.
+	#
+	# ========================================================
+
+	current_pill.z_index = 10
+
+
+	# ========================================================
 	# RESET ORIENTATION
 	# ========================================================
 
 	current_pill.orientation = Pill.Orientation.RIGHT
+
+	if current_pill.is_ghost_pill:
+		current_pill.is_ghosting = true
 
 	current_pill.tether_sprite_texture = tether_sprite_texture
 	current_pill.shift_sprite_texture = shift_sprite_texture
@@ -2307,7 +2371,7 @@ func spawn_pill() -> void:
 # INPUT
 # ============================================================
 
-func _handle_input() -> void:
+func _handle_input(delta: float) -> void:
 
 	# ========================================================
 	# TETHER PILL DEPLOYMENT
@@ -2354,17 +2418,26 @@ func _handle_input() -> void:
 	# ========================================================
 
 	if Input.is_action_just_pressed("ui_left"):
-
-		try_move_pill(
-			Vector2i(-1, 0)
-		)
-
+		try_move_pill(Vector2i(-1, 0))
+		_left_hold_timer = 0.0
+	elif Input.is_action_pressed("ui_left"):
+		_left_hold_timer += delta
+		if _left_hold_timer >= HORIZONTAL_REPEAT_INTERVAL:
+			_left_hold_timer -= HORIZONTAL_REPEAT_INTERVAL
+			try_move_pill(Vector2i(-1, 0))
+	else:
+		_left_hold_timer = 0.0
 
 	if Input.is_action_just_pressed("ui_right"):
-
-		try_move_pill(
-			Vector2i(1, 0)
-		)
+		try_move_pill(Vector2i(1, 0))
+		_right_hold_timer = 0.0
+	elif Input.is_action_pressed("ui_right"):
+		_right_hold_timer += delta
+		if _right_hold_timer >= HORIZONTAL_REPEAT_INTERVAL:
+			_right_hold_timer -= HORIZONTAL_REPEAT_INTERVAL
+			try_move_pill(Vector2i(1, 0))
+	else:
+		_right_hold_timer = 0.0
 
 
 	if Input.is_action_just_pressed("ui_down"):
@@ -3374,19 +3447,12 @@ func toggle_ghost_pill() -> void:
 	if not current_pill.is_ghost_pill:
 		return
 
-
 	if current_pill.is_ghosting:
-
 		solidify_ghost_pill()
-
-		if current_pill != null:
-
-			# Single-use: once solidified, this pill can't
-			# re-enter ghost mode.
-			current_pill.is_ghost_pill = false
+		# NOTE: no longer disabling is_ghost_pill here -- it can
+		# be re-toggled, and flashes while solid (see pill.gd).
 
 	else:
-
 		current_pill.is_ghosting = true
 
 
@@ -3502,14 +3568,12 @@ func _clear_cell_for_ghost_replace(
 func _finish_level_after_ghost_clear() -> void:
 
 	if current_pill != null:
-
 		current_pill.queue_free()
-
 		current_pill = null
 
-
 	await wait_for_vanishing_halves()
-
+	await apply_gravity()
+	await _resolve_matches_and_gravity()
 	await advance_to_next_level()
 
 
@@ -3788,6 +3852,24 @@ func settle_current_pill() -> void:
 		return
 
 
+	# ========================================================
+	# GHOST PILL
+	# ========================================================
+	#
+	# If the Ghost Pill is still ghosting when it naturally
+	# settles, restore its normal Half1/Half2 visuals before
+	# those halves are detached from the falling pill.
+	#
+	# Without this, Pill._update_pill() has left both halves
+	# invisible while the ghost visual was active, and those
+	# invisible halves are then reparented into the board.
+	# ========================================================
+
+	if current_pill.is_ghosting:
+
+		current_pill.is_ghosting = false
+
+
 	var half_1 := (
 		current_pill.get_node_or_null("Half1")
 		as PillHalf
@@ -4012,49 +4094,47 @@ func _resolve_matches_and_gravity() -> bool:
 
 
 		if matches.is_empty() and tetris_rows.is_empty():
-
+			if _no_more_enemies():
+				await apply_gravity()
+				return true
 			return false
 
 
-		# ========================================================
-		# MERGE TETRIS ROWS INTO MATCHES
-		# ========================================================
+		# ====================================================
+		# BRANCH TRAIT (only from genuine same-color matches --
+		# NOT from Tetris full-row cells, which can be multicolor)
+		# ====================================================
+
+		matches = _expand_matches_for_branch_trait(matches)
+
+		# ====================================================
+		# DISSOLVER PILL (same reasoning)
+		# ====================================================
+
+		matches = _expand_matches_for_dissolvers(matches)
+
+		# ====================================================
+		# MERGE TETRIS ROWS IN -- AFTER expansion, so a full row
+		# never seeds a branch/dissolver chain of its own.
+		# ====================================================
 
 		if not tetris_rows.is_empty():
 
 			var merged_set: Dictionary = {}
 
 			for cell in matches:
-
 				merged_set[cell] = true
 
 			for cell in tetris_rows:
-
 				merged_set[cell] = true
 
 			matches = []
 
 			for cell in merged_set.keys():
-
 				matches.append(cell)
 
-
 		# ========================================================
-		# BRANCH TRAIT
-		# ========================================================
-
-		matches = _expand_matches_for_branch_trait(matches)
-
-
-		# ========================================================
-		# DISSOLVER PILL
-		# ========================================================
-
-		matches = _expand_matches_for_dissolvers(matches)
-
-
-		# ========================================================
-		# SEPARATE PILL PARTNERS
+		# Separate Pill Partners
 		# ========================================================
 
 		separate_partners_of_matches(matches)
@@ -4688,32 +4768,17 @@ func _resolve_pong_break() -> void:
 
 	await wait_for_vanishing_halves()
 
-
-	var level_cleared := _no_more_enemies()
-
-
-	if not level_cleared:
-
-		await apply_gravity()
-
-		await wait_for_vanishing_halves()
-
-		level_cleared = await _resolve_matches_and_gravity()
-
+	var level_cleared := await _resolve_matches_and_gravity()
 
 	resolving_board = false
-
 
 	if level_cleared:
 
 		if is_instance_valid(pong_controller):
 
 			var controller := pong_controller
-
 			pong_controller = null
-
 			controller.stop()
-
 
 		await advance_to_next_level()
 

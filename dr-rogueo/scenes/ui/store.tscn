@@ -62,8 +62,9 @@ rarity_font = ExtResource("3_c56s1")
 rarity_font_size = 6
 rarity_position = Vector2(193, 208)
 rarity_alignment = 1
+preview_icon_position = Vector2(184, 141)
 debug_enabled = true
-debug_coins = 300
+debug_coins = 99
 debug_owned_slot_x = "Default"
 debug_owned_slot_y = "Default"
 debug_owned_slot_b = "Default"
@@ -73,7 +74,7 @@ debug_store_slot_3 = "Default"
 debug_store_slot_4 = "Default"
 debug_store_slot_5 = "Default"
 debug_store_slot_6 = "Default"
-debug_next_stage = 2
+debug_next_stage = 1
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
 offset_right = 427.0
@@ -181,6 +182,13 @@ next_stage_header_position = Vector2(326, 58)
 store_coin_header_position = Vector2(326, 82)
 next_stage_value_position = Vector2(326, 66)
 store_coin_value_position = Vector2(326, 90)
+description_header_font = ExtResource("3_c56s1")
+description_header_alignment = 1
+description_header_position = Vector2(324, 52)
+description_value_font = ExtResource("3_c56s1")
+description_value_line_spacing = 2
+description_value_position = Vector2(326, 68)
+description_scroll_end_pause = 3.0
 
 [node name="ContinueButton" type="Sprite2D" parent="."]
 position = Vector2(323, 179)

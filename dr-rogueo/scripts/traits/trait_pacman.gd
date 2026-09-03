@@ -25,6 +25,9 @@ func _init() -> void:
 
 	display_name = "PACMAN"
 
+	preview = Item._load_preview("res://art/ui/temp
+-preview.png")
+
 	rarity = Trait.Rarity.RARE
 
 	cost = 80

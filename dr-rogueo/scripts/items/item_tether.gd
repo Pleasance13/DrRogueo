@@ -16,6 +16,8 @@ func _init() -> void:
 
 	display_name = "TETHER PILL"
 
+	preview = Item._load_preview("res://art/ui/tether-preview.png")
+
 	rarity = Item.Rarity.COMMON
 
 	cost = 10
@@ -23,8 +25,8 @@ func _init() -> void:
 	sell_price = 5
 
 	description = (
-		"Creates a temporary bridge between the first matching " +
-		"colored cells found on either side of the falling pill."
+		"Fills the space between two pills or viruses of the " +
+		"same color, connecting them. Press A to deploy the tether."
 	)
 
 	replaces_next_pill = true

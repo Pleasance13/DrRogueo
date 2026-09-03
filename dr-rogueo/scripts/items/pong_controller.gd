@@ -457,7 +457,7 @@ func _update_input() -> void:
 
 	if (
 		not ball_released
-		and Input.is_action_just_pressed("ui_down")
+		and Input.is_action_just_pressed("ui_accept")
 	):
 
 		_release_ball()

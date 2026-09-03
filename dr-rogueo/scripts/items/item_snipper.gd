@@ -24,6 +24,8 @@ func _init() -> void:
 
 	display_name = "SNIPPER"
 
+	preview = Item._load_preview("res://art/ui/snipper-preview.png")
+
 	rarity = Item.Rarity.COMMON
 
 	cost = 10
@@ -32,8 +34,7 @@ func _init() -> void:
 
 	description = (
 		"Splits every connected pill on the board into its " +
-		"two independent halves. Gravity and any resulting " +
-		"matches resolve before the next pill falls."
+		"two independent halves."
 	)
 
 	if ResourceLoader.exists(SNIPPER_ICON_PATH):

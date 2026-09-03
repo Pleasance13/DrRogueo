@@ -310,6 +310,29 @@ var rarity_font_size := 5:
 
 
 # ============================================================
+# ITEM PREVIEW
+# ============================================================
+#
+# Shown for whichever store item/trait OR owned item/trait is
+# currently highlighted.
+#
+# Uses Item.preview / Trait.preview.
+#
+# This is separate from the purchase-placement icon, which is
+# only the temporary item/trait icon shown while choosing where
+# to put a purchase.
+#
+# ============================================================
+
+@export_group("Item Preview")
+
+@export var preview_icon_position := Vector2(6, 6):
+	set(value):
+		preview_icon_position = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
 # EDITOR PREVIEW
 # ============================================================
 
@@ -348,19 +371,15 @@ var last_selected_slot := -1
 
 var highlighted_name_label: Label
 var highlighted_rarity_label: Label
+var highlighted_preview_icon: Sprite2D
 
 var _standalone_debug_mode := false
 
-# Tracks the exact visual nodes created for each store slot.
 var _store_slot_visual_nodes: Array = []
-
-# Tracks the exact visual node created for each owned-item slot.
 var _owned_slot_visual_nodes: Array = []
 
-# Temporary icon shown while choosing where to place
-# a purchased item.
-var _purchase_preview_icon: Sprite2D = null
-var _purchase_preview_slot := -1
+var _purchase_placement_icon: Sprite2D = null
+var _purchase_placement_slot := -1
 
 var store_traits: Array[Trait] = []
 
@@ -370,8 +389,9 @@ var last_selected_trait_slot := -1
 var _trait_slot_visual_nodes: Array = []
 var _owned_trait_slot_visual_nodes: Array = []
 
-var _trait_purchase_preview_icon: Sprite2D = null
-var _trait_purchase_preview_slot := -1
+var _trait_purchase_placement_icon: Sprite2D = null
+var _trait_purchase_placement_slot := -1
+
 
 # ============================================================
 # CUSTOM INSPECTOR
@@ -381,20 +401,11 @@ func _get_property_list() -> Array[Dictionary]:
 
 	var properties: Array[Dictionary] = []
 
-	# --------------------------------------------------------
-	# CATEGORY
-	# --------------------------------------------------------
-
 	properties.append({
 		"name": "Debug / F6 Testing",
 		"type": TYPE_NIL,
 		"usage": PROPERTY_USAGE_CATEGORY
 	})
-
-
-	# --------------------------------------------------------
-	# DEBUG ENABLED
-	# --------------------------------------------------------
 
 	properties.append({
 		"name": "debug_enabled",
@@ -402,16 +413,10 @@ func _get_property_list() -> Array[Dictionary]:
 		"usage": PROPERTY_USAGE_DEFAULT
 	})
 
-
-	# --------------------------------------------------------
-	# DEBUG VALUES
-	# --------------------------------------------------------
-
 	var debug_value_usage := PROPERTY_USAGE_DEFAULT
 
 	if not debug_enabled:
 		debug_value_usage |= PROPERTY_USAGE_READ_ONLY
-
 
 	properties.append({
 		"name": "debug_coins",
@@ -421,17 +426,7 @@ func _get_property_list() -> Array[Dictionary]:
 		"usage": debug_value_usage
 	})
 
-
-	# --------------------------------------------------------
-	# ITEM ENUM
-	# --------------------------------------------------------
-
 	var item_enum_hint := _get_debug_item_enum_hint()
-
-
-	# --------------------------------------------------------
-	# OWNED ITEMS
-	# --------------------------------------------------------
 
 	properties.append({
 		"name": "debug_owned_slot_x",
@@ -456,11 +451,6 @@ func _get_property_list() -> Array[Dictionary]:
 		"hint_string": item_enum_hint,
 		"usage": debug_value_usage
 	})
-
-
-	# --------------------------------------------------------
-	# STORE ITEMS
-	# --------------------------------------------------------
 
 	properties.append({
 		"name": "debug_store_slot_1",
@@ -510,11 +500,6 @@ func _get_property_list() -> Array[Dictionary]:
 		"usage": debug_value_usage
 	})
 
-
-	# --------------------------------------------------------
-	# NEXT STAGE
-	# --------------------------------------------------------
-
 	properties.append({
 		"name": "debug_next_stage",
 		"type": TYPE_INT,
@@ -522,7 +507,6 @@ func _get_property_list() -> Array[Dictionary]:
 		"hint_string": "1,999,1",
 		"usage": debug_value_usage
 	})
-
 
 	return properties
 
@@ -576,9 +560,7 @@ func _set(property: StringName, value: Variant) -> bool:
 
 		&"debug_enabled":
 			debug_enabled = bool(value)
-
 			notify_property_list_changed()
-
 			return true
 
 		&"debug_coins":
@@ -586,57 +568,39 @@ func _set(property: StringName, value: Variant) -> bool:
 			return true
 
 		&"debug_owned_slot_x":
-			debug_owned_slot_x = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_owned_slot_x = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_owned_slot_y":
-			debug_owned_slot_y = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_owned_slot_y = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_owned_slot_b":
-			debug_owned_slot_b = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_owned_slot_b = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_store_slot_1":
-			debug_store_slot_1 = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_store_slot_1 = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_store_slot_2":
-			debug_store_slot_2 = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_store_slot_2 = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_store_slot_3":
-			debug_store_slot_3 = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_store_slot_3 = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_store_slot_4":
-			debug_store_slot_4 = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_store_slot_4 = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_store_slot_5":
-			debug_store_slot_5 = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_store_slot_5 = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_store_slot_6":
-			debug_store_slot_6 = _debug_dropdown_value_to_id(
-				str(value)
-			)
+			debug_store_slot_6 = _debug_dropdown_value_to_id(str(value))
 			return true
 
 		&"debug_next_stage":
@@ -672,16 +636,16 @@ func _get_debug_item_enum_hint() -> String:
 		if display_name.is_empty():
 			display_name = id
 
-		# If two items have the same display name, include the
-		# ID so they can still be distinguished in the inspector.
-		var option_name := display_name
+		var option_name: String = display_name
 
 		if used_names.has(option_name):
 
-			option_name = "%s [%s]" % [
-				display_name,
-				id
-			]
+			option_name = (
+				display_name
+				+ " ["
+				+ id
+				+ "]"
+			)
 
 		used_names[option_name] = true
 
@@ -696,50 +660,37 @@ func _debug_dropdown_value_to_id(
 
 	value = value.strip_edges()
 
-	# --------------------------------------------------------
-	# DEFAULT
-	#
-	# Special internal value. This means:
-	# "Do not interfere with this slot."
-	# --------------------------------------------------------
-
 	if value == "Default":
 		return DEBUG_DEFAULT
-
-	# --------------------------------------------------------
-	# NONE
-	#
-	# Empty string is the internal representation for an
-	# explicitly empty debug slot.
-	# --------------------------------------------------------
 
 	if value.is_empty() or value == "None":
 		return ""
 
-	var catalog: Array[Item] = StoreCatalog.create_catalog()
+	var catalog: Array[Item] = (
+		StoreCatalog.create_catalog()
+	)
 
 	for item in catalog:
 
 		if item == null:
 			continue
 
-		var id := str(item.id)
-		var display_name := str(item.display_name)
+		var id: String = str(item.id)
+		var display_name: String = str(item.display_name)
 
-		# Normal display name match.
 		if value == display_name:
 			return id
 
-		# Handles duplicate-name entries such as:
-		# "PONG PILL [pong]"
-		if value == "%s [%s]" % [
-			display_name,
-			id
-		]:
+		var display_with_id: String = (
+			display_name
+			+ " ["
+			+ id
+			+ "]"
+		)
 
+		if value == display_with_id:
 			return id
 
-		# Also accept the ID itself.
 		if value == id:
 			return id
 
@@ -748,7 +699,9 @@ func _debug_dropdown_value_to_id(
 
 func _get_debug_item_enum_signature() -> String:
 
-	var catalog: Array[Item] = StoreCatalog.create_catalog()
+	var catalog: Array[Item] = (
+		StoreCatalog.create_catalog()
+	)
 
 	var parts: Array[String] = []
 
@@ -757,11 +710,13 @@ func _get_debug_item_enum_signature() -> String:
 		if item == null:
 			continue
 
+		var id: String = str(item.id)
+		var display_name: String = str(item.display_name)
+
 		parts.append(
-			"%s|%s" % [
-				str(item.id),
-				str(item.display_name)
-			]
+			id
+			+ "|"
+			+ display_name
 		)
 
 	parts.sort()
@@ -813,7 +768,11 @@ func _process(_delta: float) -> void:
 	if not Engine.is_editor_hint():
 		return
 
-	_refresh_debug_item_dropdowns()
+	if _editor_preview_update_queued:
+
+		_editor_preview_update_queued = false
+
+		_update_editor_preview()
 
 	if _editor_preview_update_queued:
 
@@ -845,7 +804,6 @@ func _ensure_editor_preview() -> void:
 		return
 
 	_create_editor_preview()
-
 
 
 func _create_editor_preview() -> void:
@@ -884,10 +842,6 @@ func _create_editor_preview() -> void:
 
 	rarity_label.text = EDITOR_RARITY_TEXT
 
-	# --------------------------------------------------------
-	# ITEM STORE SLOTS
-	# --------------------------------------------------------
-
 	for i in item_slot_paths.size():
 
 		var slot := get_node_or_null(
@@ -902,10 +856,6 @@ func _create_editor_preview() -> void:
 			i
 		)
 
-	# --------------------------------------------------------
-	# TRAIT STORE SLOTS
-	# --------------------------------------------------------
-
 	for i in trait_slot_paths.size():
 
 		var slot := get_node_or_null(
@@ -919,10 +869,6 @@ func _create_editor_preview() -> void:
 			slot,
 			i
 		)
-
-	# --------------------------------------------------------
-	# RESTOCK
-	# --------------------------------------------------------
 
 	var restock_slot := get_node_or_null(
 		restock_button_path
@@ -990,10 +936,6 @@ func _create_editor_trait_slot_preview(
 	slot_index: int
 ) -> void:
 
-	# --------------------------------------------------------
-	# COIN
-	# --------------------------------------------------------
-
 	if coin_texture:
 
 		var coin_name := (
@@ -1017,10 +959,6 @@ func _create_editor_trait_slot_preview(
 			trait_coin_position
 		)
 
-	# --------------------------------------------------------
-	# PRICE
-	# --------------------------------------------------------
-
 	var price_name := (
 		EDITOR_PREFIX
 		+ "TraitPrice"
@@ -1039,8 +977,6 @@ func _create_editor_trait_slot_preview(
 		slot.add_child(price_label)
 
 	price_label.text = EDITOR_PRICE_TEXT
-
-
 
 
 func _create_editor_restock_preview(
@@ -1117,10 +1053,6 @@ func _update_editor_preview() -> void:
 
 		rarity_label.visible = true
 
-	# --------------------------------------------------------
-	# RESTOCK PREVIEW
-	# --------------------------------------------------------
-
 	var restock_slot := get_node_or_null(
 		restock_button_path
 	) as Node2D
@@ -1144,10 +1076,6 @@ func _update_editor_preview() -> void:
 				restock_price_color,
 				restock_price_font
 			)
-
-	# --------------------------------------------------------
-	# ITEM STORE SLOTS
-	# --------------------------------------------------------
 
 	for i in item_slot_paths.size():
 
@@ -1176,7 +1104,6 @@ func _update_editor_preview() -> void:
 
 				coin.animation = "default"
 				coin.speed_scale = 1.0
-
 				coin.play()
 
 		var price_label := slot.get_node_or_null(
@@ -1196,10 +1123,6 @@ func _update_editor_preview() -> void:
 				price_color,
 				price_font
 			)
-
-	# --------------------------------------------------------
-	# TRAIT STORE SLOTS
-	# --------------------------------------------------------
 
 	for i in trait_slot_paths.size():
 
@@ -1228,7 +1151,6 @@ func _update_editor_preview() -> void:
 
 				coin.animation = "default"
 				coin.speed_scale = 1.0
-
 				coin.play()
 
 		var price_label := slot.get_node_or_null(
@@ -1320,12 +1242,6 @@ func _ready() -> void:
 
 	_create_highlighted_info_labels()
 
-	# --------------------------------------------------------
-	# Always create the normal store stock first.
-	#
-	# Debug "Default" means leave this stock alone.
-	# --------------------------------------------------------
-
 	_roll_stock()
 
 	_roll_trait_stock()
@@ -1334,17 +1250,12 @@ func _ready() -> void:
 
 	_update_restock_visuals()
 
-	# --------------------------------------------------------
-	# Standalone F6 initialization is deferred so the scene
-	# has finished entering the tree first.
-	# --------------------------------------------------------
-
 	call_deferred(
 		"_initialize_standalone_debug"
 	)
 
 	_update_coin_display()
-	
+
 	_update_owned_visuals()
 
 	_update_owned_trait_visuals()
@@ -1372,12 +1283,6 @@ func _initialize_standalone_debug() -> void:
 	if board != null:
 		return
 
-	# --------------------------------------------------------
-	# Debug disabled:
-	#
-	# F6 behaves exactly like a normal store.
-	# --------------------------------------------------------
-
 	if not debug_enabled:
 
 		_standalone_debug_mode = false
@@ -1386,22 +1291,9 @@ func _initialize_standalone_debug() -> void:
 
 	_standalone_debug_mode = true
 
-	# --------------------------------------------------------
-	# COINS
-	# --------------------------------------------------------
-
 	_set_coins(
 		debug_coins
 	)
-
-	# --------------------------------------------------------
-	# INVENTORY
-	#
-	# DO NOT RESET INVENTORY.
-	#
-	# "Default" means debug does nothing to that slot.
-	# We only modify slots that have an explicit debug value.
-	# --------------------------------------------------------
 
 	var owned_debug_values: Array[String] = [
 		debug_owned_slot_x,
@@ -1416,22 +1308,8 @@ func _initialize_standalone_debug() -> void:
 
 		var debug_value := owned_debug_values[i].strip_edges()
 
-		# ----------------------------------------------------
-		# DEFAULT
-		#
-		# Do absolutely nothing.
-		#
-		# The existing inventory item remains untouched.
-		# ----------------------------------------------------
-
 		if debug_value == DEBUG_DEFAULT:
 			continue
-
-		# ----------------------------------------------------
-		# NONE
-		#
-		# Explicitly empty this slot.
-		# ----------------------------------------------------
 
 		if debug_value.is_empty():
 
@@ -1440,12 +1318,6 @@ func _initialize_standalone_debug() -> void:
 			)
 
 			continue
-
-		# ----------------------------------------------------
-		# EXPLICIT ITEM
-		#
-		# Replace this slot with the requested item.
-		# ----------------------------------------------------
 
 		var item := _fresh_item(
 			debug_value
@@ -1461,7 +1333,6 @@ func _initialize_standalone_debug() -> void:
 
 			continue
 
-		# Remove whatever is currently in this slot first.
 		Inventory.remove_item_from_slot(
 			i
 		)
@@ -1470,15 +1341,6 @@ func _initialize_standalone_debug() -> void:
 			item,
 			i
 		)
-
-	# --------------------------------------------------------
-	# STORE STOCK
-	#
-	# _roll_stock() already created the normal random stock.
-	#
-	# "Default" means leave the existing slot untouched.
-	# Only explicit None/item values override the rolled stock.
-	# --------------------------------------------------------
 
 	var debug_store_values: Array[String] = [
 		debug_store_slot_1,
@@ -1493,22 +1355,8 @@ func _initialize_standalone_debug() -> void:
 
 		var debug_value := debug_store_values[i].strip_edges()
 
-		# ----------------------------------------------------
-		# DEFAULT
-		#
-		# Do absolutely nothing.
-		#
-		# The normally rolled store item remains untouched.
-		# ----------------------------------------------------
-
 		if debug_value == DEBUG_DEFAULT:
 			continue
-
-		# ----------------------------------------------------
-		# NONE
-		#
-		# Explicitly empty this store slot.
-		# ----------------------------------------------------
 
 		if debug_value.is_empty():
 
@@ -1523,12 +1371,6 @@ func _initialize_standalone_debug() -> void:
 					store_items.append(null)
 
 			continue
-
-		# ----------------------------------------------------
-		# EXPLICIT ITEM
-		#
-		# Replace this store slot with the requested item.
-		# ----------------------------------------------------
 
 		var item := _fresh_item(
 			debug_value
@@ -1620,8 +1462,6 @@ func setup(game_board: DrRogueoBoard) -> void:
 
 	board = game_board
 
-	# Once the real board exists, this is normal gameplay,
-	# not standalone debug mode.
 	_standalone_debug_mode = false
 
 	_update_coin_display()
@@ -1640,12 +1480,9 @@ func get_coins() -> int:
 	if board != null:
 		return board.coins
 
-	# Debug coins are only valid in standalone debug mode.
 	if _standalone_debug_mode and debug_enabled:
 		return debug_coins
 
-	# No real board and no active debug mode means there is no
-	# real-game coin value to read.
 	return 0
 
 
@@ -1657,8 +1494,6 @@ func set_coins(value: int) -> void:
 
 		return
 
-	# Do not allow the debug value to act as a real coin store
-	# when Debug Enabled is disabled.
 	if _standalone_debug_mode and debug_enabled:
 
 		debug_coins = value
@@ -1734,13 +1569,11 @@ func _random_item(
 	if valid_items.is_empty():
 		return null
 
-
 	var total_weight := 0.0
 
 	for item in valid_items:
 
 		total_weight += item.get_shop_weight()
-
 
 	if total_weight <= 0.0:
 
@@ -1750,7 +1583,6 @@ func _random_item(
 		)
 
 		return _fresh_item(valid_items[index].id)
-
 
 	var roll := randf() * total_weight
 
@@ -1763,7 +1595,6 @@ func _random_item(
 		if roll < running:
 
 			return _fresh_item(item.id)
-
 
 	return _fresh_item(valid_items[-1].id)
 
@@ -1779,10 +1610,6 @@ func _fresh_item(id: String) -> Item:
 		StoreCatalog.create_catalog()
 	)
 
-	# --------------------------------------------------------
-	# Primary lookup: item ID.
-	# --------------------------------------------------------
-
 	for item in catalog:
 
 		if item == null:
@@ -1791,10 +1618,6 @@ func _fresh_item(id: String) -> Item:
 		if str(item.id) == clean_id:
 
 			return item
-
-	# --------------------------------------------------------
-	# Fallback lookup: display name.
-	# --------------------------------------------------------
 
 	for item in catalog:
 
@@ -1826,7 +1649,6 @@ func _roll_trait_stock() -> void:
 	if catalog.is_empty():
 		return
 
-
 	var available: Array[Trait] = []
 
 	for trait_item in catalog:
@@ -1839,7 +1661,6 @@ func _roll_trait_stock() -> void:
 
 		available.append(trait_item)
 
-
 	for _i in trait_slot_paths.size():
 
 		if available.is_empty():
@@ -1848,17 +1669,14 @@ func _roll_trait_stock() -> void:
 
 			continue
 
-
 		var total_weight := 0.0
 
 		for trait_item in available:
 
 			total_weight += trait_item.get_shop_weight()
 
-
 		var picked: Trait
 		var picked_index := 0
-
 
 		if total_weight <= 0.0:
 
@@ -1889,7 +1707,6 @@ func _roll_trait_stock() -> void:
 
 					break
 
-
 		available.remove_at(picked_index)
 
 		store_traits.append(
@@ -1918,18 +1735,6 @@ func _fresh_trait(id: String) -> Trait:
 		if str(trait_item.id) == clean_id:
 
 			return trait_item
-
-	for trait_item in catalog:
-
-		if trait_item == null:
-			continue
-
-		if str(trait_item.display_name) == clean_id:
-
-			return trait_item
-
-	return null
-
 
 	for trait_item in catalog:
 
@@ -1995,7 +1800,7 @@ func _update_restock_visuals() -> void:
 
 		slot.add_child(_restock_price_label)
 
-	_restock_price_label.text = "%d" % restock_cost
+		_restock_price_label.text = "%d" % restock_cost
 
 	_apply_label_settings(
 		_restock_price_label,
@@ -2017,7 +1822,6 @@ func _update_slot_visuals() -> void:
 	if Engine.is_editor_hint():
 		return
 
-	# Keep the tracking array the same length as the slot list.
 	while _store_slot_visual_nodes.size() < item_slot_paths.size():
 
 		_store_slot_visual_nodes.append([])
@@ -2030,10 +1834,6 @@ func _update_slot_visuals() -> void:
 
 		if slot == null:
 			continue
-
-		# ----------------------------------------------------
-		# FREE EXACTLY WHAT WE CREATED LAST TIME
-		# ----------------------------------------------------
 
 		var old_nodes: Array = (
 			_store_slot_visual_nodes[i]
@@ -2299,16 +2099,31 @@ func _create_highlighted_info_labels() -> void:
 		highlighted_rarity_label
 	)
 
+	highlighted_preview_icon = Sprite2D.new()
+
+	highlighted_preview_icon.name = (
+		"HighlightedPreviewIcon"
+	)
+
+	highlighted_preview_icon.centered = false
+
+	highlighted_preview_icon.position = _pixel_vector(
+		preview_icon_position
+	)
+
+	highlighted_preview_icon.visible = false
+
+	add_child(
+		highlighted_preview_icon
+	)
+
 
 func _on_menu_selection_changed(
 	selection: MenuSelectable
 ) -> void:
 
-	if selection == null:
-		return
-
 	# --------------------------------------------------------
-	# PURCHASE PLACEMENT (ITEM)
+	# PURCHASE PLACEMENT
 	# --------------------------------------------------------
 
 	if (
@@ -2325,10 +2140,12 @@ func _on_menu_selection_changed(
 
 		if owned_index >= 0:
 
-			show_purchase_preview(
+			show_purchase_placement(
 				menu.purchased_item,
 				owned_index
 			)
+
+		_hide_highlighted_info()
 
 		return
 
@@ -2351,13 +2168,19 @@ func _on_menu_selection_changed(
 
 		if owned_trait_index >= 0:
 
-			show_trait_purchase_preview(
+			show_trait_purchase_placement(
 				menu.purchased_trait,
 				owned_trait_index
 			)
 
+		_hide_highlighted_info()
+
 		return
 
+
+	# --------------------------------------------------------
+	# STORE ITEM
+	# --------------------------------------------------------
 
 	var index: int = _get_store_slot_index(
 		selection
@@ -2372,6 +2195,10 @@ func _on_menu_selection_changed(
 		return
 
 
+	# --------------------------------------------------------
+	# STORE TRAIT
+	# --------------------------------------------------------
+
 	var trait_index: int = _get_store_trait_slot_index(
 		selection
 	)
@@ -2381,6 +2208,73 @@ func _on_menu_selection_changed(
 		_show_highlighted_trait_info(
 			trait_index
 		)
+
+		return
+
+
+	# --------------------------------------------------------
+	# OWNED ITEM
+	# --------------------------------------------------------
+
+	if menu != null:
+
+		var owned_index: int = (
+			menu.owned_item_slots.find(
+				selection
+			)
+		)
+
+		if owned_index >= 0:
+
+			if owned_index < Inventory.items.size():
+
+				var item := Inventory.items[owned_index]
+
+				if item != null:
+
+					_show_owned_item_info(
+						item
+					)
+
+					return
+
+
+	# --------------------------------------------------------
+	# OWNED TRAIT
+	# --------------------------------------------------------
+
+	if menu != null:
+
+		var owned_trait_index: int = (
+			menu.owned_trait_slots.find(
+				selection
+			)
+		)
+
+		if owned_trait_index >= 0:
+
+			if owned_trait_index < TraitInventory.traits.size():
+
+				var trait_item := (
+					TraitInventory.traits[
+						owned_trait_index
+					]
+				)
+
+				if trait_item != null:
+
+					_show_owned_trait_info(
+						trait_item
+					)
+
+					return
+
+
+	# --------------------------------------------------------
+	# EVERYTHING ELSE
+	# --------------------------------------------------------
+
+	_hide_highlighted_info()
 
 
 func _get_store_slot_index(
@@ -2411,29 +2305,48 @@ func _show_highlighted_info(
 	index: int
 ) -> void:
 
+	# --------------------------------------------------------
+	# INVALID / EMPTY STORE SLOT
+	#
+	# This is important after purchasing an item. The cursor can
+	# remain on the same store slot after that slot becomes null.
+	# In that case we MUST clear the old highlighted information.
+	# --------------------------------------------------------
+
 	if index < 0:
+
+		_hide_highlighted_info()
+
 		return
 
 	if index >= store_items.size():
+
+		_hide_highlighted_info()
+
 		return
 
 	var item := store_items[index]
 
 	if item == null:
+
+		_hide_highlighted_info()
+
 		return
 
 	if highlighted_name_label == null:
+
+		_hide_highlighted_info()
+
 		return
 
 	if highlighted_rarity_label == null:
+
+		_hide_highlighted_info()
+
 		return
 
-	var display_name: String = (
-		item.display_name
-	)
-
 	highlighted_name_label.text = (
-		display_name
+		item.display_name
 	)
 
 	highlighted_rarity_label.text = (
@@ -2444,26 +2357,72 @@ func _show_highlighted_info(
 
 	highlighted_rarity_label.visible = true
 
+	# --------------------------------------------------------
+	# ITEM PREVIEW
+	# --------------------------------------------------------
+
+	if highlighted_preview_icon != null:
+
+		highlighted_preview_icon.texture = item.preview
+
+		highlighted_preview_icon.visible = (
+			item.preview != null
+		)
+
+	# --------------------------------------------------------
+	# CLIPBOARD DESCRIPTION
+	# --------------------------------------------------------
+
+	var clipboard := get_node_or_null(
+		clipboard_path
+	) as Clipboard
+
+	if clipboard != null:
+
+		clipboard.show_description(
+			item.display_name,
+			item.description
+		)
+
 
 func _show_highlighted_trait_info(
 	index: int
 ) -> void:
 
+	# --------------------------------------------------------
+	# INVALID / EMPTY TRAIT SLOT
+	# --------------------------------------------------------
+
 	if index < 0:
+
+		_hide_highlighted_info()
+
 		return
 
 	if index >= store_traits.size():
+
+		_hide_highlighted_info()
+
 		return
 
 	var trait_item := store_traits[index]
 
 	if trait_item == null:
+
+		_hide_highlighted_info()
+
 		return
 
 	if highlighted_name_label == null:
+
+		_hide_highlighted_info()
+
 		return
 
 	if highlighted_rarity_label == null:
+
+		_hide_highlighted_info()
+
 		return
 
 	highlighted_name_label.text = (
@@ -2478,6 +2437,135 @@ func _show_highlighted_trait_info(
 
 	highlighted_rarity_label.visible = true
 
+	# --------------------------------------------------------
+	# TRAIT PREVIEW
+	# --------------------------------------------------------
+
+	if highlighted_preview_icon != null:
+
+		highlighted_preview_icon.texture = (
+			trait_item.preview
+		)
+
+		highlighted_preview_icon.visible = (
+			trait_item.preview != null
+		)
+
+	# --------------------------------------------------------
+	# CLIPBOARD DESCRIPTION
+	# --------------------------------------------------------
+
+	var clipboard := get_node_or_null(
+		clipboard_path
+	) as Clipboard
+
+	if clipboard != null:
+
+		clipboard.show_description(
+			trait_item.display_name,
+			trait_item.description
+		)
+
+
+# ============================================================
+# OWNED ITEM INFO
+# ============================================================
+
+func _show_owned_item_info(
+	item: Item
+) -> void:
+
+	if item == null:
+		return
+
+	if highlighted_name_label != null:
+
+		highlighted_name_label.text = (
+			item.display_name
+		)
+
+		highlighted_name_label.visible = true
+
+	if highlighted_rarity_label != null:
+
+		highlighted_rarity_label.text = (
+			item.get_rarity_name()
+		)
+
+		highlighted_rarity_label.visible = true
+
+	if highlighted_preview_icon != null:
+
+		highlighted_preview_icon.texture = item.preview
+
+		highlighted_preview_icon.visible = (
+			item.preview != null
+		)
+
+	var clipboard := get_node_or_null(
+		clipboard_path
+	) as Clipboard
+
+	if clipboard != null:
+
+		clipboard.show_description(
+			item.display_name,
+			item.description
+		)
+
+
+# ============================================================
+# OWNED TRAIT INFO
+# ============================================================
+
+func _show_owned_trait_info(
+	trait_item: Trait
+) -> void:
+
+	if trait_item == null:
+		return
+
+	if highlighted_name_label != null:
+
+		highlighted_name_label.text = (
+			trait_item.display_name
+		)
+
+		highlighted_name_label.visible = true
+
+	if highlighted_rarity_label != null:
+
+		highlighted_rarity_label.text = (
+			trait_item.get_rarity_name()
+		)
+
+		highlighted_rarity_label.visible = true
+
+	if highlighted_preview_icon != null:
+
+		highlighted_preview_icon.texture = (
+			trait_item.preview
+		)
+
+		highlighted_preview_icon.visible = (
+			trait_item.preview != null
+		)
+
+	var clipboard := get_node_or_null(
+		clipboard_path
+	) as Clipboard
+
+	if clipboard != null:
+
+		clipboard.show_description(
+			trait_item.display_name,
+			trait_item.description
+		)
+
+
+# ============================================================
+# HIDE HIGHLIGHTED INFO
+# ============================================================
 
 func _hide_highlighted_info() -> void:
 
@@ -2488,6 +2576,31 @@ func _hide_highlighted_info() -> void:
 	if highlighted_rarity_label:
 
 		highlighted_rarity_label.visible = false
+
+	# --------------------------------------------------------
+	# HIGHLIGHTED PREVIEW
+	#
+	# Clear BOTH visibility and texture. This prevents an old
+	# preview from lingering if the icon is shown again later.
+	# --------------------------------------------------------
+
+	if highlighted_preview_icon:
+
+		highlighted_preview_icon.visible = false
+
+		highlighted_preview_icon.texture = null
+
+	# --------------------------------------------------------
+	# CLIPBOARD DESCRIPTION
+	# --------------------------------------------------------
+
+	var clipboard := get_node_or_null(
+		clipboard_path
+	) as Clipboard
+
+	if clipboard != null:
+
+		clipboard.hide_description()
 
 
 func _update_highlighted_info() -> void:
@@ -2504,10 +2617,10 @@ func _update_highlighted_info() -> void:
 
 
 # ============================================================
-# PURCHASE PLACEMENT PREVIEW
+# PURCHASE PLACEMENT ICON
 # ============================================================
 
-func show_purchase_preview(
+func show_purchase_placement(
 	item: Item,
 	owned_slot: int
 ) -> void:
@@ -2528,58 +2641,49 @@ func show_purchase_preview(
 	if slot == null:
 		return
 
-	# --------------------------------------------------------
-	# Create the temporary preview icon if necessary.
-	# --------------------------------------------------------
+	if _purchase_placement_icon == null:
 
-	if _purchase_preview_icon == null:
+		_purchase_placement_icon = Sprite2D.new()
 
-		_purchase_preview_icon = Sprite2D.new()
-
-		_purchase_preview_icon.name = (
-			"PurchasePreviewIcon"
+		_purchase_placement_icon.name = (
+			"PurchasePlacementIcon"
 		)
 
-		_purchase_preview_icon.centered = false
+		_purchase_placement_icon.centered = false
 
 		slot.add_child(
-			_purchase_preview_icon
+			_purchase_placement_icon
 		)
 
-	# --------------------------------------------------------
-	# If the highlight moved to another slot, move the preview
-	# icon along with it.
-	# --------------------------------------------------------
+	elif _purchase_placement_icon.get_parent() != slot:
 
-	elif _purchase_preview_icon.get_parent() != slot:
-
-		_purchase_preview_icon.reparent(
+		_purchase_placement_icon.reparent(
 			slot
 		)
 
-	_purchase_preview_icon.texture = item.icon
+	_purchase_placement_icon.texture = item.icon
 
-	_purchase_preview_icon.position = Vector2(4, 6)
+	_purchase_placement_icon.position = Vector2(4, 6)
 
-	_purchase_preview_slot = owned_slot
+	_purchase_placement_slot = owned_slot
 
 
-func hide_purchase_preview() -> void:
+func hide_purchase_placement() -> void:
 
-	if _purchase_preview_icon:
+	if _purchase_placement_icon:
 
-		_purchase_preview_icon.free()
+		_purchase_placement_icon.free()
 
-		_purchase_preview_icon = null
+		_purchase_placement_icon = null
 
-		_purchase_preview_slot = -1
+		_purchase_placement_slot = -1
 
 
 # ============================================================
-# TRAIT PURCHASE PLACEMENT PREVIEW
+# TRAIT PURCHASE PLACEMENT ICON
 # ============================================================
 
-func show_trait_purchase_preview(
+func show_trait_purchase_placement(
 	trait_item: Trait,
 	owned_slot: int
 ) -> void:
@@ -2600,44 +2704,46 @@ func show_trait_purchase_preview(
 	if slot == null:
 		return
 
-	if _trait_purchase_preview_icon == null:
+	if _trait_purchase_placement_icon == null:
 
-		_trait_purchase_preview_icon = Sprite2D.new()
+		_trait_purchase_placement_icon = Sprite2D.new()
 
-		_trait_purchase_preview_icon.name = (
-			"TraitPurchasePreviewIcon"
+		_trait_purchase_placement_icon.name = (
+			"TraitPurchasePlacementIcon"
 		)
 
-		_trait_purchase_preview_icon.centered = false
+		_trait_purchase_placement_icon.centered = false
 
 		slot.add_child(
-			_trait_purchase_preview_icon
+			_trait_purchase_placement_icon
 		)
 
-	elif _trait_purchase_preview_icon.get_parent() != slot:
+	elif _trait_purchase_placement_icon.get_parent() != slot:
 
-		_trait_purchase_preview_icon.reparent(
+		_trait_purchase_placement_icon.reparent(
 			slot
 		)
 
-	_trait_purchase_preview_icon.texture = trait_item.icon
+	_trait_purchase_placement_icon.texture = (
+		trait_item.icon
+	)
 
-	_trait_purchase_preview_icon.position = _pixel_vector(
+	_trait_purchase_placement_icon.position = _pixel_vector(
 		owned_trait_icon_position
 	)
 
-	_trait_purchase_preview_slot = owned_slot
+	_trait_purchase_placement_slot = owned_slot
 
 
-func hide_trait_purchase_preview() -> void:
+func hide_trait_purchase_placement() -> void:
 
-	if _trait_purchase_preview_icon:
+	if _trait_purchase_placement_icon:
 
-		_trait_purchase_preview_icon.free()
+		_trait_purchase_placement_icon.free()
 
-		_trait_purchase_preview_icon = null
+		_trait_purchase_placement_icon = null
 
-		_trait_purchase_preview_slot = -1
+		_trait_purchase_placement_slot = -1
 
 
 # ============================================================
@@ -2686,19 +2792,14 @@ func _update_clipboard_display() -> void:
 
 func _get_next_stage_number() -> int:
 
-	# board.level is already advanced to the UPCOMING level by
-	# the time the store is opened.
 	if board != null:
 
 		return board.get_stage()
 
-	# Debug next-stage value is only usable in standalone debug.
 	if _standalone_debug_mode and debug_enabled:
 
 		return debug_next_stage
 
-	# Without a board or active debug mode, don't use the debug
-	# value.
 	return 1
 
 
@@ -2724,27 +2825,16 @@ func _update_owned_visuals() -> void:
 		if slot == null:
 			continue
 
-		# ----------------------------------------------------
-		# REMOVE ANY GENERATED OWNED/PURCHASE ICONS
-		#
-		# The inventory is the source of truth. We completely
-		# rebuild the visual for this slot every time.
-		# ----------------------------------------------------
-
 		for child in slot.get_children():
 
 			if (
 				child.name == "OwnedVisualIcon"
-				or child.name == "PurchasePreviewIcon"
+				or child.name == "PurchasePlacementIcon"
 			):
 
 				child.free()
 
 		_owned_slot_visual_nodes[i] = null
-
-		# ----------------------------------------------------
-		# EMPTY SLOT = NOTHING TO DRAW
-		# ----------------------------------------------------
 
 		if i >= Inventory.items.size():
 			continue
@@ -2756,10 +2846,6 @@ func _update_owned_visuals() -> void:
 
 		if item.icon == null:
 			continue
-
-		# ----------------------------------------------------
-		# DRAW THE ACTUAL OWNED ITEM
-		# ----------------------------------------------------
 
 		var icon := Sprite2D.new()
 
@@ -2802,7 +2888,7 @@ func _update_owned_trait_visuals() -> void:
 
 			if (
 				child.name == "OwnedTraitVisualIcon"
-				or child.name == "TraitPurchasePreviewIcon"
+				or child.name == "TraitPurchasePlacementIcon"
 			):
 
 				child.free()
@@ -2904,12 +2990,6 @@ func buy_selected_item() -> Item:
 	if Inventory.items.find(null) == -1:
 		return null
 
-	# IMPORTANT:
-	# Do NOT deduct coins here.
-	#
-	# This function is now only used as a validation/access
-	# function. The actual transaction happens when an owned
-	# slot is confirmed.
 	return item
 
 
@@ -2927,32 +3007,18 @@ func complete_purchase(
 	if store_slot >= store_items.size():
 		return
 
-	# --------------------------------------------------------
-	# COMPLETE THE PURCHASE
-	# --------------------------------------------------------
-
 	set_coins(
 		get_coins() - item.cost
 	)
 
 	_update_coin_display()
 
-	# --------------------------------------------------------
-	# REMOVE THE TEMPORARY PURCHASE PREVIEW
-	# --------------------------------------------------------
-
-	hide_purchase_preview()
-
-	# --------------------------------------------------------
-	# REMOVE THE EXACT STORE SLOT
-	# --------------------------------------------------------
+	hide_purchase_placement()
 
 	store_items[store_slot] = null
 
 	_update_slot_visuals()
 
-	# Inventory was already updated by the menu controller.
-	# Rebuild the owned visuals entirely from Inventory.items.
 	_update_owned_visuals()
 
 
@@ -3002,7 +3068,7 @@ func complete_trait_purchase(
 
 	_update_coin_display()
 
-	hide_trait_purchase_preview()
+	hide_trait_purchase_placement()
 
 	store_traits[store_slot] = null
 

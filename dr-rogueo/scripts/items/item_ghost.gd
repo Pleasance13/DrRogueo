@@ -34,6 +34,8 @@ func _init() -> void:
 
 	display_name = "GHOST PILL"
 
+	preview = Item._load_preview("res://art/ui/ghost-preview.png")
+
 	rarity = Item.Rarity.COMMON
 
 	cost = 10
@@ -41,11 +43,10 @@ func _init() -> void:
 	sell_price = 5
 
 	description = (
-		"The next pill can turn into a ghost. Press A while " +
-		"it falls to phase through pills and viruses; press A " +
-		"again to re-solidify, replacing anything it's " +
-		"overlapping. Hits the floor while ghosting and it " +
-		"settles automatically."
+		"The next pill turns into a ghost. While it falls " +
+		"it phases through pills and viruses. Press A " +
+		"to re-solidify, replacing anything it's " +
+		"overlapping."
 	)
 
 	replaces_next_pill = true
