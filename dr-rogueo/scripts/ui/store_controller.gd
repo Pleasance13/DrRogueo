@@ -1831,9 +1831,13 @@ func _roll_trait_stock() -> void:
 
 	for trait_item in catalog:
 
-		if trait_item:
+		if trait_item == null:
+			continue
 
-			available.append(trait_item)
+		if TraitInventory.has_trait(trait_item.id):
+			continue
+
+		available.append(trait_item)
 
 
 	for _i in trait_slot_paths.size():

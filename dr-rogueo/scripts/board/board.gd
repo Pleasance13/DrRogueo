@@ -1163,12 +1163,19 @@ func apply_new_level_background() -> void:
 		return
 
 
+	var category := (
+		BackgroundPreset.Category.BOSS
+		if level == BOSS_LEVEL
+		else BackgroundPreset.Category.NORMAL
+	)
+
+
 	print(
 		"Board: Applying random background preset for level ",
 		level
 	)
 
-	background.apply_random_preset()
+	background.apply_random_preset(category)
 
 	print(
 		"Board: Background random preset call completed."
