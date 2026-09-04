@@ -1044,9 +1044,12 @@ func _apply_wrap_visual_offsets() -> void:
 	if current_pill == null:
 		return
 
-	if current_pill.is_tether_pill or current_pill.is_shift_pill:
-		return
+	current_pill.tether_half_1_offset = Vector2.ZERO
+	current_pill.tether_half_2_offset = Vector2.ZERO
 
+	# Shift keeps its existing special handling.
+	if current_pill.is_shift_pill:
+		return
 
 	var half_1_cell := current_pill.get_half_1_cell(
 		current_grid_position
@@ -1055,7 +1058,6 @@ func _apply_wrap_visual_offsets() -> void:
 	var half_2_cell := current_pill.get_half_2_cell(
 		current_grid_position
 	)
-
 
 	var needs_wrap: bool = (
 		has_pacman_trait()
@@ -1067,14 +1069,30 @@ func _apply_wrap_visual_offsets() -> void:
 		)
 	)
 
-
 	if not needs_wrap:
-
 		if _pill_is_wrap_split:
-
 			current_pill.reset_half_layout()
-
 			_pill_is_wrap_split = false
+		return
+
+	# Tether is drawn directly by Pill._draw_tether(), so it
+	# needs its own wrap flags rather than Half1/Half2 offsets.
+	if current_pill.is_tether_pill:
+
+		var wrapped_1_cell := wrap_cell_if_needed(half_1_cell)
+		var wrapped_2_cell := wrap_cell_if_needed(half_2_cell)
+
+		current_pill.tether_half_1_offset = (
+			grid_to_local(wrapped_1_cell)
+			- grid_to_local(half_1_cell)
+		)
+
+		current_pill.tether_half_2_offset = (
+			grid_to_local(wrapped_2_cell)
+			- grid_to_local(half_2_cell)
+		)
+
+		current_pill.queue_redraw()
 
 		return
 
@@ -1092,15 +1110,9 @@ func _apply_wrap_visual_offsets() -> void:
 	if half_1 == null or half_2 == null:
 		return
 
-
 	var wrapped_1_cell := wrap_cell_if_needed(half_1_cell)
 	var wrapped_2_cell := wrap_cell_if_needed(half_2_cell)
 
-
-	# Overriding local position this way is correct regardless
-	# of how "wrapped" current_pill.position itself conceptually
-	# is -- local = target_world - parent_world always resolves
-	# to the right on-screen spot.
 	half_1.position = (
 		grid_to_local(wrapped_1_cell)
 		- current_pill.position
@@ -1110,7 +1122,6 @@ func _apply_wrap_visual_offsets() -> void:
 		grid_to_local(wrapped_2_cell)
 		- current_pill.position
 	)
-
 
 	_pill_is_wrap_split = true
 
@@ -2211,6 +2222,17 @@ func create_next_preview() -> void:
 
 func spawn_pill() -> void:
 
+	if next_pill_item != null and next_pill_item.id == "pong":
+
+		var pong_item := next_pill_item
+
+		clear_next_pill_item()
+
+		pong_item.use(self)
+
+		return
+
+
 	if transitioning_level:
 		return
 
@@ -2612,8 +2634,6 @@ func can_pill_occupy(
 
 	var wrap_horizontal: bool = (
 		has_pacman_trait()
-		and not current_pill.is_tether_pill
-		and not current_pill.is_shift_pill
 	)
 
 
@@ -3250,6 +3270,10 @@ func _build_wrapped_tether_cells(
 	var cells: Array[Vector2i] = []
 
 
+	# ========================================================
+	# ARM A
+	# ========================================================
+
 	var arm_a: Variant = _walk_wrapped_arm(
 		low_cell,
 		Vector2i(-1, 0),
@@ -3268,11 +3292,28 @@ func _build_wrapped_tether_cells(
 		cells.append(cell)
 
 
-	cells.append(low_cell)
+	# ========================================================
+	# ORIGINAL TETHER PILL CELLS
+	#
+	# These are the CENTER of the deployment path.
+	# Wrap them visually so a pill crossing the edge becomes,
+	# for example, 7 -> 0 instead of 7 -> 8.
+	# ========================================================
+
+	var wrapped_low_cell := wrap_cell_if_needed(low_cell)
+	var wrapped_high_cell := wrap_cell_if_needed(high_cell)
+
+
+	cells.append(wrapped_low_cell)
+
 
 	if high_cell != low_cell:
-		cells.append(high_cell)
+		cells.append(wrapped_high_cell)
 
+
+	# ========================================================
+	# ARM B
+	# ========================================================
 
 	var arm_b: Variant = _walk_wrapped_arm(
 		high_cell,
@@ -3670,7 +3711,7 @@ func arm_next_pill_item(item: Item) -> bool:
 
 		next_item_preview.texture = item.icon
 
-		next_item_preview.position = next_pill.position
+		next_item_preview.position = next_pill.position + Vector2(-3,-3)
 
 		add_child(next_item_preview)
 

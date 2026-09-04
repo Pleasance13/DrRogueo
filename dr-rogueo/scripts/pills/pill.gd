@@ -7,6 +7,7 @@ extends Node2D
 # PILL
 # ============================================================
 
+const BOARD_WIDTH := 8
 
 enum Orientation {
 	RIGHT,
@@ -64,6 +65,9 @@ var preview_state: int = PreviewState.CONNECTED:
 # ============================================================
 # TETHER
 # ============================================================
+
+var tether_half_1_offset := Vector2.ZERO
+var tether_half_2_offset := Vector2.ZERO
 
 @export_group("Tether")
 
@@ -686,6 +690,10 @@ func _draw_tether() -> void:
 
 			position_1 = Vector2(0, 0)
 			position_2 = Vector2(0, -CELL_SIZE)
+
+
+	position_1 += tether_half_1_offset
+	position_2 += tether_half_2_offset
 
 
 	draw_texture_rect_region(

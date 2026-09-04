@@ -37,7 +37,7 @@ func _init() -> void:
 		"run out, or miss the ball, and the minigame ends."
 	)
 
-	#replaces_next_pill = true
+	replaces_next_pill = true
 
 	icon = load(PONG_ICON_PATH)
 

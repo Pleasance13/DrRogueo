@@ -1,11 +1,19 @@
-[gd_scene load_steps=2 format=3 uid="uid://bmewfptcmpfog"]
+[gd_scene load_steps=3 format=3 uid="uid://bmewfptcmpfog"]
 
 [ext_resource type="Texture2D" uid="uid://bq8mt0k366bje" path="res://art/ui/pill-preview-box.png" id="1_73dgy"]
+[ext_resource type="Texture2D" uid="uid://48wfo663vo7x" path="res://art/ui/mario-pill-preview.png" id="2_b331r"]
 
 [node name="Pill-preview" type="Node2D"]
 texture_filter = 1
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="PreviewBox" type="Sprite2D" parent="."]
 position = Vector2(226, 32)
 texture = ExtResource("1_73dgy")
 centered = false
+
+[node name="Mario" type="Sprite2D" parent="PreviewBox"]
+position = Vector2(8, 8)
+texture = ExtResource("2_b331r")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 40, 40)

@@ -41,8 +41,8 @@ enum Orientation {
 
 
 const DEPLOYING_DURATION := 0.18
-const DEPLOY_INTERVAL := 0.08
-const DEPLOY_COMPLETE_DELAY := 0.18
+const DEPLOY_INTERVAL := 0.2
+const DEPLOY_COMPLETE_DELAY := 0.4
 
 const CELL_SIZE := 8
 
@@ -134,6 +134,8 @@ var deploy_timer := 0.0
 # tether and expand outward toward both endpoints.
 var visible_cells := 0
 
+var deployment_collision_pending := false
+
 
 # ============================================================
 # ENDPOINT MONITORING
@@ -192,6 +194,8 @@ func deploy(
 
 	visible_cells = 0
 
+	deployment_collision_pending = false
+
 	endpoint_check_timer = 0.0
 
 	queue_redraw()
@@ -217,6 +221,23 @@ func deploy(
 # ============================================================
 
 func _process(delta: float) -> void:
+
+	# --------------------------------------------------------
+	# DEPLOYMENT COLLISION
+	# --------------------------------------------------------
+	#
+	# The previous frame revealed the cells where the two
+	# deploying ends meet. Leave that frame visible, then
+	# destroy the tether on the following frame.
+	# --------------------------------------------------------
+
+	if deployment_collision_pending:
+
+		deployment_collision_pending = false
+
+		break_tether()
+
+		return
 
 	# --------------------------------------------------------
 	# ENDPOINT MONITORING
@@ -342,14 +363,276 @@ func _process(delta: float) -> void:
 	# Every tick adds one cell to each side.
 	# --------------------------------------------------------
 
-	visible_cells += 2
+	var next_visible_cells := visible_cells + 2
 
-	if visible_cells > tether_cells.size():
+	if next_visible_cells > tether_cells.size():
+		next_visible_cells = tether_cells.size()
 
-		visible_cells = tether_cells.size()
 
+	visible_cells = next_visible_cells
 
 	queue_redraw()
+
+
+	# --------------------------------------------------------
+	# CHECK WHETHER THE TWO DEPLOYING ENDS MEET
+	# --------------------------------------------------------
+	#
+	# Check AFTER revealing the new cells so the ends are allowed
+	# to visibly reach the cells where they meet.
+	# --------------------------------------------------------
+
+	if _deployment_ends_have_met(visible_cells):
+
+		if _deployment_collision_is_wrap(visible_cells):
+
+			deployment_collision_pending = true
+
+		else:
+
+			break_tether()
+
+		return
+
+
+# ============================================================
+# DEPLOYMENT END COLLISION
+# ============================================================
+
+func _deployment_ends_have_met(
+	test_visible_cells: int
+) -> bool:
+
+	if tether_cells.is_empty():
+		return false
+
+
+	var total_cells := tether_cells.size()
+
+
+	if test_visible_cells <= 1:
+		return false
+
+
+	var start_index: int
+	var end_index: int
+
+
+	# --------------------------------------------------------
+	# CALCULATE THE RANGE THAT WOULD BE VISIBLE AFTER
+	# THE NEXT EXTENSION
+	# --------------------------------------------------------
+
+	if total_cells % 2 == 1:
+
+		var center_index := total_cells / 2
+		var half_visible := test_visible_cells / 2
+
+		start_index = center_index - half_visible
+		end_index = center_index + half_visible
+
+	else:
+
+		start_index = (
+			(total_cells - test_visible_cells) / 2
+		)
+
+		end_index = (
+			start_index +
+			test_visible_cells -
+			1
+		)
+
+
+	start_index = maxi(start_index, 0)
+	end_index = mini(
+		end_index,
+		total_cells - 1
+	)
+
+
+	# --------------------------------------------------------
+	# IF THE NEW RANGE WOULD CONTAIN THE SAME PHYSICAL CELL
+	# MORE THAN ONCE, THE ENDS HAVE COLLIDED.
+	# --------------------------------------------------------
+
+	for i in range(start_index, end_index + 1):
+
+		for j in range(i + 1, end_index + 1):
+
+			var cell_a := tether_cells[i]
+			var cell_b := tether_cells[j]
+
+
+			# Normal collision.
+			if cell_a == cell_b:
+
+				return true
+
+
+			# Pacman horizontal wrap collision.
+			if (
+				orientation == Orientation.HORIZONTAL
+				and board != null
+				and board.has_pacman_trait()
+				and cell_a.y == cell_b.y
+			):
+
+				var x_a := wrapi(
+					cell_a.x,
+					0,
+					board.BOARD_WIDTH
+				)
+
+				var x_b := wrapi(
+					cell_b.x,
+					0,
+					board.BOARD_WIDTH
+				)
+
+
+				if x_a == x_b:
+
+					return true
+
+
+	# --------------------------------------------------------
+	# THE NEW OUTER CELLS CAN ALSO TOUCH ACROSS THE WRAP.
+	# --------------------------------------------------------
+
+	if (
+		orientation == Orientation.HORIZONTAL
+		and board != null
+		and board.has_pacman_trait()
+	):
+
+		var left_cell := tether_cells[start_index]
+		var right_cell := tether_cells[end_index]
+
+
+		if left_cell.y == right_cell.y:
+
+			var left_x := wrapi(
+				left_cell.x,
+				0,
+				board.BOARD_WIDTH
+			)
+
+			var right_x := wrapi(
+				right_cell.x,
+				0,
+				board.BOARD_WIDTH
+			)
+
+
+			if (
+				(
+					left_x == 0
+					and right_x == board.BOARD_WIDTH - 1
+				)
+				or
+				(
+					left_x == board.BOARD_WIDTH - 1
+					and right_x == 0
+				)
+			):
+
+				return true
+
+
+	return false
+
+
+# ============================================================
+# DEPLOYMENT WRAP COLLISION
+# ============================================================
+
+func _deployment_collision_is_wrap(
+	test_visible_cells: int
+) -> bool:
+
+	if (
+		orientation != Orientation.HORIZONTAL
+		or board == null
+		or not board.has_pacman_trait()
+		or tether_cells.is_empty()
+	):
+
+		return false
+
+
+	var total_cells := tether_cells.size()
+
+	if test_visible_cells <= 1:
+		return false
+
+
+	var start_index: int
+	var end_index: int
+
+
+	# Calculate the currently visible range.
+
+	if total_cells % 2 == 1:
+
+		var center_index := total_cells / 2
+		var half_visible := test_visible_cells / 2
+
+		start_index = center_index - half_visible
+		end_index = center_index + half_visible
+
+	else:
+
+		start_index = (
+			(total_cells - test_visible_cells) / 2
+		)
+
+		end_index = (
+			start_index +
+			test_visible_cells -
+			1
+		)
+
+
+	start_index = maxi(start_index, 0)
+	end_index = mini(
+		end_index,
+		total_cells - 1
+	)
+
+
+	var left_cell := tether_cells[start_index]
+	var right_cell := tether_cells[end_index]
+
+
+	if left_cell.y != right_cell.y:
+		return false
+
+
+	var left_x := wrapi(
+		left_cell.x,
+		0,
+		board.BOARD_WIDTH
+	)
+
+	var right_x := wrapi(
+		right_cell.x,
+		0,
+		board.BOARD_WIDTH
+	)
+
+
+	return (
+		(
+			left_x == 0
+			and right_x == board.BOARD_WIDTH - 1
+		)
+		or
+		(
+			left_x == board.BOARD_WIDTH - 1
+			and right_x == 0
+		)
+	)
 
 
 # ============================================================
@@ -449,31 +732,106 @@ func _draw_tether_segment(
 	var region: Rect2
 
 
-	if index == 0:
+	# --------------------------------------------------------
+	# DURING DEPLOYMENT
+	# --------------------------------------------------------
+	#
+	# The currently exposed outer cells are the two advancing
+	# ends of the tether, so give them the end-cap sprites.
+	# --------------------------------------------------------
 
-		if orientation == Orientation.HORIZONTAL:
+	if extension_started:
 
-			region = REGION_HORIZONTAL_LEFT_END
+		var start_index := 0
+		var end_index := total_cells - 1
+
+
+		if total_cells % 2 == 1:
+
+			var center_index := total_cells / 2
+			var half_visible := visible_cells / 2
+
+			start_index = center_index - half_visible
+			end_index = center_index + half_visible
 
 		else:
 
-			region = REGION_VERTICAL_TOP_END
+			start_index = (
+				(total_cells - visible_cells) / 2
+			)
+
+			end_index = (
+				start_index +
+				visible_cells -
+				1
+			)
 
 
-	elif index == total_cells - 1:
+		start_index = maxi(start_index, 0)
+		end_index = mini(
+			end_index,
+			total_cells - 1
+		)
 
-		if orientation == Orientation.HORIZONTAL:
 
-			region = REGION_HORIZONTAL_RIGHT_END
+		if index == start_index:
+
+			if orientation == Orientation.HORIZONTAL:
+
+				region = REGION_HORIZONTAL_LEFT_END
+
+			else:
+
+				region = REGION_VERTICAL_TOP_END
+
+
+		elif index == end_index:
+
+			if orientation == Orientation.HORIZONTAL:
+
+				region = REGION_HORIZONTAL_RIGHT_END
+
+			else:
+
+				region = REGION_VERTICAL_BOTTOM_END
+
 
 		else:
 
-			region = REGION_VERTICAL_BOTTOM_END
+			region = REGION_FOR_MIDDLE()
 
+
+	# --------------------------------------------------------
+	# FULLY DEPLOYED
+	# --------------------------------------------------------
 
 	else:
 
-		region = REGION_FOR_MIDDLE()
+		if index == 0:
+
+			if orientation == Orientation.HORIZONTAL:
+
+				region = REGION_HORIZONTAL_LEFT_END
+
+			else:
+
+				region = REGION_VERTICAL_TOP_END
+
+
+		elif index == total_cells - 1:
+
+			if orientation == Orientation.HORIZONTAL:
+
+				region = REGION_HORIZONTAL_RIGHT_END
+
+			else:
+
+				region = REGION_VERTICAL_BOTTOM_END
+
+
+		else:
+
+			region = REGION_FOR_MIDDLE()
 
 
 	_draw_region_at_cell(
@@ -496,11 +854,30 @@ func _draw_deploying_pill() -> void:
 	var second := original_pill_cells[1]
 
 
+	# --------------------------------------------------------
+	# PACMAN WRAP
+	# --------------------------------------------------------
+	# The falling tether pill can straddle the board edge.
+	# Deployment needs to begin from the actual visible edge
+	# cells, not the logical out-of-bounds cells.
+	# --------------------------------------------------------
+
+	if board != null and board.has_pacman_trait():
+
+		first = board.wrap_cell_if_needed(first)
+		second = board.wrap_cell_if_needed(second)
+
+
 	if orientation == Orientation.HORIZONTAL:
 
 		var left_cell := first
 		var right_cell := second
 
+
+		# Determine which visible cell is physically left.
+		#
+		# When the pill is wrapped, normal numeric ordering
+		# can be misleading, so compare the wrapped positions.
 
 		if left_cell.x > right_cell.x:
 
