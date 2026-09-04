@@ -81,6 +81,10 @@ func _ready() -> void:
 			_on_inventory_changed
 		)
 
+		TraitInventory.traits_changed.connect(
+			_on_traits_changed
+		)
+
 		_refresh()
 
 
@@ -233,17 +237,30 @@ func _set_slot_frame(
 var preview_icon: Sprite2D
 
 func _setup_preview() -> void:
+
 	if preview_sprite == null:
 		return
+
 	preview_sprite.region_enabled = true
-	preview_sprite.region_rect = Rect2(PREVIEW_COL_X[0], 0, PREVIEW_COL_W, PREVIEW_H)
+
+	preview_sprite.region_rect = Rect2(
+		PREVIEW_COL_X[0],
+		0,
+		PREVIEW_COL_W,
+		PREVIEW_H
+	)
+
 	preview_sprite.visible = true
 
 	preview_icon = Sprite2D.new()
 	preview_icon.name = "PreviewIcon"
 	preview_icon.centered = true
-	preview_icon.position = Vector2(PREVIEW_COL_W / 2.0, PREVIEW_H / 2.0)
+	preview_icon.position = Vector2(
+		PREVIEW_COL_W / 2.0,
+		PREVIEW_H / 2.0
+	)
 	preview_icon.visible = false
+
 	preview_sprite.add_child(preview_icon)
 
 
@@ -274,26 +291,22 @@ func _input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
 		return
 
-	if not (event is InputEventJoypadButton):
+
+	# --------------------------------------------------------
+	# USE ITEM
+	# --------------------------------------------------------
+
+	if event.is_action_pressed("item_use"):
+
+		_set_use_button_pressed(true)
+		_activate_selected()
+
 		return
 
-	var btn_event := event as InputEventJoypadButton
 
+	if event.is_action_released("item_use"):
 
-	# --------------------------------------------------------
-	# A
-	# --------------------------------------------------------
-
-	if btn_event.button_index == JOY_BUTTON_A:
-
-		if btn_event.pressed:
-
-			_set_use_button_pressed(true)
-			_activate_selected()
-
-		else:
-
-			_set_use_button_pressed(false)
+		_set_use_button_pressed(false)
 
 		return
 
@@ -302,20 +315,22 @@ func _input(event: InputEvent) -> void:
 	# INVENTORY SLOTS
 	# --------------------------------------------------------
 
-	if not btn_event.pressed:
+	if event.is_action_pressed("item_slot_x"):
+
+		_toggle_slot(0)
 		return
 
 
-	match btn_event.button_index:
+	if event.is_action_pressed("item_slot_y"):
 
-		JOY_BUTTON_X:
-			_toggle_slot(0)
+		_toggle_slot(1)
+		return
 
-		JOY_BUTTON_Y:
-			_toggle_slot(1)
 
-		JOY_BUTTON_B:
-			_toggle_slot(2)
+	if event.is_action_pressed("item_slot_b"):
+
+		_toggle_slot(2)
+		return
 
 
 # ============================================================
@@ -404,6 +419,56 @@ func _on_inventory_changed() -> void:
 
 
 # ============================================================
+# TRAIT SIGNAL
+# ============================================================
+
+func _on_traits_changed() -> void:
+
+	_refresh_traits()
+
+
+# ============================================================
+# TRAIT ICONS
+# ============================================================
+
+func _refresh_traits() -> void:
+
+	for i in range(TraitInventory.MAX_TRAITS):
+
+		var slot_path := "TraitSlots/Trait-Slot-%d" % (i + 1)
+
+		var trait_slot := get_node_or_null(slot_path)
+
+		if trait_slot == null:
+			continue
+
+		var trait_icon := (
+			trait_slot.get_node_or_null("TraitIcon")
+			as Sprite2D
+		)
+
+		if trait_icon == null:
+			continue
+
+		var trait_item: Trait = (
+			TraitInventory.traits[i]
+			if i < TraitInventory.traits.size()
+			else null
+		)
+
+		if trait_item != null:
+
+			trait_icon.centered = false
+			trait_icon.texture = trait_item.icon
+			trait_icon.visible = trait_item.icon != null
+
+		else:
+
+			trait_icon.texture = null
+			trait_icon.visible = false
+
+
+# ============================================================
 # REFRESH
 # ============================================================
 
@@ -411,6 +476,11 @@ func _refresh() -> void:
 
 	if Engine.is_editor_hint():
 		return
+
+
+	# --------------------------------------------------------
+	# ITEM SLOTS
+	# --------------------------------------------------------
 
 	for i in range(SLOT_COUNT):
 
@@ -448,6 +518,13 @@ func _refresh() -> void:
 
 
 	# --------------------------------------------------------
+	# TRAIT SLOTS
+	# --------------------------------------------------------
+
+	_refresh_traits()
+
+
+	# --------------------------------------------------------
 	# PREVIEW
 	# --------------------------------------------------------
 
@@ -458,14 +535,20 @@ func _refresh() -> void:
 
 	var item: Item = (
 		Inventory.items[selected_slot]
-		if selected_slot >= 0 and selected_slot < Inventory.items.size()
+		if selected_slot >= 0
+		and selected_slot < Inventory.items.size()
 		else null
 	)
+
 	if item != null and item.preview != null:
+
 		preview_icon.texture = item.preview
 		preview_icon.visible = true
+
 	else:
+
 		preview_icon.visible = false
+
 
 	if (
 		selected_slot >= 0
@@ -474,6 +557,7 @@ func _refresh() -> void:
 
 		preview_frame = selected_slot + 1
 
+
 	preview_sprite.region_rect = Rect2(
 		PREVIEW_COL_X[preview_frame],
 		0,
@@ -481,18 +565,25 @@ func _refresh() -> void:
 		PREVIEW_H
 	)
 
+
 	if board != null and board.clipboard != null:
+
 		var highlighted_item: Item = (
 			Inventory.items[selected_slot]
-			if selected_slot >= 0 and selected_slot < Inventory.items.size()
+			if selected_slot >= 0
+			and selected_slot < Inventory.items.size()
 			else null
 		)
+
 		if highlighted_item != null:
+
 			board.clipboard.show_description(
 				highlighted_item.display_name,
 				highlighted_item.description
 			)
+
 		else:
+
 			board.clipboard.hide_description()
 
 

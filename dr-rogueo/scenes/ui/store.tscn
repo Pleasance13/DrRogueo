@@ -63,6 +63,15 @@ rarity_font_size = 6
 rarity_position = Vector2(193, 208)
 rarity_alignment = 1
 preview_icon_position = Vector2(184, 141)
+confirm_font = ExtResource("25_c56s1")
+confirm_font_size = 8
+confirm_insufficient_color = Color(0.290196, 0.301961, 0.290196, 1)
+confirm_text_position = Vector2(177, 169)
+confirm_price_font_size = 8
+confirm_price_font = ExtResource("25_c56s1")
+confirm_price_position = Vector2(177, 180)
+confirm_coin_position = Vector2(5, 3)
+confirm_suffix_position = Vector2(-1, -1)
 debug_enabled = true
 debug_coins = 99
 debug_owned_slot_x = "Default"
@@ -135,10 +144,6 @@ centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 44, 29)
 script = ExtResource("18_qvgk3")
-neighbor_up = NodePath("../Traits/Trait3")
-neighbor_down = NodePath("../RestockButton")
-neighbor_left = NodePath("../Items/Item3")
-neighbor_right = NodePath("../OwnedItems/OwnedItem1")
 
 [node name="Highlight" type="Sprite2D" parent="BuyButton"]
 position = Vector2(-2, -2)
@@ -152,7 +157,7 @@ centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 44, 29)
 script = ExtResource("18_qvgk3")
-neighbor_up = NodePath("../BuyButton")
+neighbor_up = NodePath("../Traits/Trait3")
 neighbor_down = NodePath("../Traits/Trait1")
 neighbor_left = NodePath("../Items/Item6")
 neighbor_right = NodePath("../ContinueButton")
@@ -307,7 +312,7 @@ script = ExtResource("18_qvgk3")
 neighbor_up = NodePath("../../Bottles/Bottle4")
 neighbor_down = NodePath("../Item6")
 neighbor_left = NodePath("../Item2")
-neighbor_right = NodePath("../../BuyButton")
+neighbor_right = NodePath("../../RestockButton")
 
 [node name="Highlight" type="Sprite2D" parent="Items/Item3"]
 texture = ExtResource("28_8lq3c")
@@ -381,7 +386,7 @@ centered = false
 position = Vector2(254, 87)
 script = ExtResource("18_qvgk3")
 neighbor_up = NodePath("../Trait2")
-neighbor_down = NodePath("../../BuyButton")
+neighbor_down = NodePath("../../RestockButton")
 neighbor_left = NodePath("../../Bottles/Bottle4")
 neighbor_right = NodePath("../../OwnedTraits/OwnedTrait1")
 
@@ -397,7 +402,7 @@ position = Vector2(333, 123)
 script = ExtResource("18_qvgk3")
 neighbor_up = NodePath("../../ContinueButton")
 neighbor_down = NodePath("../../OwnedItems/OwnedItem1")
-neighbor_left = NodePath("../../BuyButton")
+neighbor_left = NodePath("../../Traits/Trait3")
 neighbor_right = NodePath("../OwnedTrait2")
 
 [node name="Highlight" type="Sprite2D" parent="OwnedTraits/OwnedTrait1"]
@@ -435,7 +440,7 @@ position = Vector2(322, 144)
 script = ExtResource("18_qvgk3")
 neighbor_up = NodePath("../../OwnedTraits/OwnedTrait1")
 neighbor_down = NodePath("../../ContinueButton")
-neighbor_left = NodePath("../../BuyButton")
+neighbor_left = NodePath("../../RestockButton")
 neighbor_right = NodePath("../OwnedItem2")
 
 [node name="Highlight" type="Sprite2D" parent="OwnedItems/OwnedItem1"]

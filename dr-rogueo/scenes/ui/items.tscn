@@ -16,10 +16,25 @@ shader_parameter/progress = 1.0
 texture_filter = 1
 script = ExtResource("1_8dj6o")
 
-[node name="Trait-Slots" type="Sprite2D" parent="."]
+[node name="TraitSlots" type="Sprite2D" parent="."]
 position = Vector2(290, 34)
 texture = ExtResource("1_0rtce")
 centered = false
+
+[node name="Trait-Slot-1" type="Node2D" parent="TraitSlots"]
+
+[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-1"]
+position = Vector2(2, 2)
+
+[node name="Trait-Slot-2" type="Node2D" parent="TraitSlots"]
+
+[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-2"]
+position = Vector2(2, 20)
+
+[node name="Trait-Slot-3" type="Node2D" parent="TraitSlots"]
+
+[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-3"]
+position = Vector2(2, 38)
 
 [node name="Item-Slots" type="Node2D" parent="."]
 position = Vector2(239, 105)

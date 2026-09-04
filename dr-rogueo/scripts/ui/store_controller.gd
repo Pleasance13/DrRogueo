@@ -312,23 +312,117 @@ var rarity_font_size := 5:
 # ============================================================
 # ITEM PREVIEW
 # ============================================================
-#
-# Shown for whichever store item/trait OR owned item/trait is
-# currently highlighted.
-#
-# Uses Item.preview / Trait.preview.
-#
-# This is separate from the purchase-placement icon, which is
-# only the temporary item/trait icon shown while choosing where
-# to put a purchase.
-#
-# ============================================================
 
 @export_group("Item Preview")
 
 @export var preview_icon_position := Vector2(6, 6):
 	set(value):
 		preview_icon_position = value
+		_queue_editor_preview_update()
+
+@export_group("Confirm Text")
+
+@export var confirm_font: Font:
+	set(value):
+		confirm_font = value
+		_queue_editor_preview_update()
+
+@export_range(1, 32, 1)
+var confirm_font_size := 7:
+	set(value):
+		confirm_font_size = value
+		_queue_editor_preview_update()
+
+@export var confirm_color := Color.WHITE:
+	set(value):
+		confirm_color = value
+		_queue_editor_preview_update()
+
+@export var confirm_insufficient_color := Color.RED:
+	set(value):
+		confirm_insufficient_color = value
+		_queue_editor_preview_update()
+
+@export var confirm_text_position := Vector2(193, 190):
+	set(value):
+		confirm_text_position = value
+		_queue_editor_preview_update()
+
+@export var confirm_text_size := Vector2(80, 10):
+	set(value):
+		confirm_text_size = value
+		_queue_editor_preview_update()
+
+@export var confirm_text_alignment := HORIZONTAL_ALIGNMENT_CENTER:
+	set(value):
+		confirm_text_alignment = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
+# CONFIRM PRICE
+# ============================================================
+
+@export_group("Confirm Price")
+
+@export_range(1, 32, 1)
+var confirm_price_font_size := 7:
+	set(value):
+		confirm_price_font_size = value
+		_queue_editor_preview_update()
+
+@export var confirm_price_color := Color.WHITE:
+	set(value):
+		confirm_price_color = value
+		_queue_editor_preview_update()
+
+@export var confirm_price_font: Font:
+	set(value):
+		confirm_price_font = value
+		_queue_editor_preview_update()
+
+@export var confirm_price_position := Vector2(193, 200):
+	set(value):
+		confirm_price_position = value
+		_queue_editor_preview_update()
+
+@export var confirm_price_size := Vector2(80, 10):
+	set(value):
+		confirm_price_size = value
+		_queue_editor_preview_update()
+
+@export var confirm_price_alignment := HORIZONTAL_ALIGNMENT_CENTER:
+	set(value):
+		confirm_price_alignment = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
+# CONFIRM COIN
+# ============================================================
+
+@export_group("Confirm Coin Position")
+
+@export var confirm_coin_position := Vector2(0, 0):
+	set(value):
+		confirm_coin_position = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
+# CONFIRM SUFFIX
+# ============================================================
+
+@export_group("Confirm ? Position")
+
+@export var confirm_suffix_position := Vector2(0, 0):
+	set(value):
+		confirm_suffix_position = value
+		_queue_editor_preview_update()
+
+var confirm_suffix_size := Vector2(12, 10):
+	set(value):
+		confirm_suffix_size = value
 		_queue_editor_preview_update()
 
 
@@ -372,6 +466,11 @@ var last_selected_slot := -1
 var highlighted_name_label: Label
 var highlighted_rarity_label: Label
 var highlighted_preview_icon: Sprite2D
+
+var confirm_prefix_label: Label
+var confirm_price_label: Label
+var confirm_suffix_label: Label
+var confirm_coin: AnimatedSprite2D
 
 var _standalone_debug_mode := false
 
@@ -1241,6 +1340,8 @@ func _ready() -> void:
 	randomize()
 
 	_create_highlighted_info_labels()
+
+	_create_confirm_text_nodes()
 
 	_roll_stock()
 
@@ -2118,9 +2219,424 @@ func _create_highlighted_info_labels() -> void:
 	)
 
 
+# ============================================================
+# CONFIRM TEXT (BUY / SELL)
+# ============================================================
+
+func _create_confirm_text_nodes() -> void:
+
+	confirm_prefix_label = Label.new()
+	confirm_prefix_label.name = "ConfirmPrefixLabel"
+	confirm_prefix_label.visible = false
+	add_child(confirm_prefix_label)
+
+	confirm_coin = _create_coin_animation()
+	confirm_coin.name = "ConfirmCoin"
+	confirm_coin.visible = false
+	add_child(confirm_coin)
+
+	confirm_suffix_label = Label.new()
+	confirm_suffix_label.name = "ConfirmSuffixLabel"
+	confirm_suffix_label.text = "?"
+	confirm_suffix_label.visible = false
+	add_child(confirm_suffix_label)
+
+	confirm_price_label = Label.new()
+	confirm_price_label.name = "ConfirmPriceLabel"
+	confirm_price_label.visible = false
+	add_child(confirm_price_label)
+
+	_apply_confirm_text_style()
+
+
+func _apply_confirm_text_style() -> void:
+
+	if confirm_prefix_label != null:
+
+		confirm_prefix_label.position = _pixel_vector(
+			confirm_text_position
+		)
+
+		confirm_prefix_label.size = _pixel_vector(
+			confirm_text_size
+		)
+
+		confirm_prefix_label.horizontal_alignment = (
+			confirm_text_alignment
+		)
+
+		confirm_prefix_label.add_theme_font_size_override(
+			"font_size",
+			confirm_font_size
+		)
+
+		confirm_prefix_label.add_theme_color_override(
+			"font_color",
+			confirm_color
+		)
+
+		_apply_pixel_font(
+			confirm_prefix_label,
+			confirm_font
+		)
+
+	if confirm_price_label != null:
+
+		confirm_price_label.position = _pixel_vector(
+			confirm_price_position
+		)
+
+		confirm_price_label.size = _pixel_vector(
+			confirm_price_size
+		)
+
+		confirm_price_label.horizontal_alignment = (
+			HORIZONTAL_ALIGNMENT_LEFT
+		)
+
+		confirm_price_label.add_theme_font_size_override(
+			"font_size",
+			confirm_price_font_size
+		)
+
+		confirm_price_label.add_theme_color_override(
+			"font_color",
+			confirm_price_color
+		)
+
+		_apply_pixel_font(
+			confirm_price_label,
+			confirm_price_font
+		)
+
+	if confirm_coin != null:
+
+		confirm_coin.position = _pixel_vector(
+			confirm_coin_position
+		)
+
+	if confirm_suffix_label != null:
+
+		confirm_suffix_label.position = _pixel_vector(
+			confirm_suffix_position
+		)
+
+		confirm_suffix_label.size = _pixel_vector(
+			confirm_suffix_size
+		)
+
+		confirm_suffix_label.horizontal_alignment = (
+			HORIZONTAL_ALIGNMENT_LEFT
+		)
+
+		confirm_suffix_label.add_theme_font_size_override(
+			"font_size",
+			confirm_font_size
+		)
+
+		confirm_suffix_label.add_theme_color_override(
+			"font_color",
+			confirm_color
+		)
+
+		_apply_pixel_font(
+			confirm_suffix_label,
+			confirm_font
+		)
+
+	_update_confirm_price_row()
+
+
+func _update_confirm_price_row() -> void:
+
+	if confirm_coin == null:
+		return
+
+	if confirm_suffix_label == null:
+		return
+
+	if confirm_price_label == null:
+		return
+
+	var price_text := confirm_price_label.text
+
+	var price_width := 0
+
+	if not price_text.is_empty():
+
+		var font := confirm_price_label.get_theme_font(
+			"font"
+		)
+
+		var font_size := confirm_price_label.get_theme_font_size(
+			"font_size"
+		)
+
+		if font != null:
+
+			price_width = ceili(
+				font.get_string_size(
+					price_text,
+					HORIZONTAL_ALIGNMENT_LEFT,
+					-1,
+					font_size
+				).x
+			)
+
+	var coin_width := 11
+	var suffix_width := 5
+	var spacing := 1
+
+	var total_width := (
+		price_width
+		+ spacing
+		+ coin_width
+		+ spacing
+		+ suffix_width
+	)
+
+	var row_left := confirm_price_position.x
+
+	match confirm_price_alignment:
+
+		HORIZONTAL_ALIGNMENT_CENTER:
+
+			row_left = (
+				confirm_price_position.x
+				+ (
+					confirm_price_size.x
+					- total_width
+				) / 2.0
+			)
+
+		HORIZONTAL_ALIGNMENT_RIGHT:
+
+			row_left = (
+				confirm_price_position.x
+				+ confirm_price_size.x
+				- total_width
+			)
+
+		HORIZONTAL_ALIGNMENT_LEFT:
+
+			row_left = confirm_price_position.x
+
+
+	# PRICE
+
+	confirm_price_label.position = _pixel_vector(
+		Vector2(
+			row_left,
+			confirm_price_position.y
+		)
+	)
+
+
+	# COIN
+
+	confirm_coin.position = _pixel_vector(
+		Vector2(
+			row_left
+			+ price_width
+			+ spacing
+			+ confirm_coin_position.x,
+			confirm_price_position.y
+			+ confirm_coin_position.y
+		)
+	)
+
+
+	# ?
+
+	confirm_suffix_label.position = _pixel_vector(
+		Vector2(
+			row_left
+			+ price_width
+			+ spacing
+			+ coin_width
+			+ spacing
+			+ confirm_suffix_position.x,
+			confirm_price_position.y + 1
+			+ confirm_suffix_position.y
+		)
+	)
+
+
+func _update_confirm_text() -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	if confirm_prefix_label == null:
+		return
+
+	if menu == null or menu.current != menu.buy_button:
+
+		_hide_confirm_text()
+		return
+
+
+	# --------------------------------------------------------
+	# SELL
+	# --------------------------------------------------------
+
+	if menu.transaction_mode == StoreMenuController.TransactionMode.SELL_CONFIRM:
+
+		var sell_price := 0
+
+		if menu.transaction_kind == StoreMenuController.TransactionKind.ITEM:
+
+			if (
+				menu.selected_owned_slot >= 0
+				and menu.selected_owned_slot < Inventory.items.size()
+			):
+
+				var item := Inventory.items[
+					menu.selected_owned_slot
+				]
+
+				if item != null:
+					sell_price = item.sell_price
+
+		else:
+
+			if (
+				menu.selected_owned_trait_slot >= 0
+				and menu.selected_owned_trait_slot < TraitInventory.traits.size()
+			):
+
+				var trait_item := TraitInventory.traits[
+					menu.selected_owned_trait_slot
+				]
+
+				if trait_item != null:
+					sell_price = trait_item.sell_price
+
+		_show_confirm_text(
+			"SELL FOR",
+			sell_price,
+			true,
+			true
+		)
+
+		return
+
+
+	# --------------------------------------------------------
+	# Anything other than a pending BUY -> hide.
+	# --------------------------------------------------------
+
+	if menu.transaction_mode != StoreMenuController.TransactionMode.NONE:
+
+		_hide_confirm_text()
+		return
+
+
+	# --------------------------------------------------------
+	# BUY
+	# --------------------------------------------------------
+
+	var cost := -1
+
+	if menu.transaction_kind == StoreMenuController.TransactionKind.ITEM:
+
+		var item := menu._get_selected_store_item()
+
+		if item != null:
+			cost = item.cost
+
+	else:
+
+		var trait_item := menu._get_selected_store_trait()
+
+		if trait_item != null:
+			cost = trait_item.cost
+
+	if cost < 0:
+
+		_hide_confirm_text()
+
+		return
+
+	if get_coins() < cost:
+
+		_show_confirm_text(
+			"CAN'T AFFORD",
+			0,
+			false,
+			false
+		)
+
+		return
+
+	_show_confirm_text(
+		"BUY FOR",
+		cost,
+		true,
+		true
+	)
+
+
+func _show_confirm_text(
+	action_text: String,
+	price: int,
+	show_extras: bool,
+	affordable: bool
+) -> void:
+
+	if confirm_prefix_label == null:
+		return
+
+	confirm_prefix_label.text = action_text
+	confirm_prefix_label.visible = true
+
+	confirm_prefix_label.add_theme_color_override(
+		"font_color",
+		confirm_color if affordable else confirm_insufficient_color
+	)
+
+	if confirm_coin != null:
+
+		confirm_coin.visible = show_extras
+
+	if confirm_suffix_label != null:
+
+		confirm_suffix_label.visible = show_extras
+
+	if confirm_price_label != null:
+
+		confirm_price_label.text = "%d" % price
+
+		confirm_price_label.visible = show_extras
+
+		confirm_price_label.add_theme_color_override(
+			"font_color",
+			confirm_color if affordable else confirm_insufficient_color
+		)
+
+	_update_confirm_price_row()
+
+
+func _hide_confirm_text() -> void:
+
+	if confirm_prefix_label != null:
+		confirm_prefix_label.visible = false
+
+	if confirm_coin != null:
+		confirm_coin.visible = false
+
+	if confirm_suffix_label != null:
+		confirm_suffix_label.visible = false
+
+	if confirm_price_label != null:
+		confirm_price_label.visible = false
+
+
 func _on_menu_selection_changed(
 	selection: MenuSelectable
 ) -> void:
+
+	_update_confirm_text()
 
 	# --------------------------------------------------------
 	# PURCHASE PLACEMENT
@@ -2228,7 +2744,9 @@ func _on_menu_selection_changed(
 
 			if owned_index < Inventory.items.size():
 
-				var item := Inventory.items[owned_index]
+				var item := Inventory.items[
+					owned_index
+				]
 
 				if item != null:
 
@@ -2305,14 +2823,6 @@ func _show_highlighted_info(
 	index: int
 ) -> void:
 
-	# --------------------------------------------------------
-	# INVALID / EMPTY STORE SLOT
-	#
-	# This is important after purchasing an item. The cursor can
-	# remain on the same store slot after that slot becomes null.
-	# In that case we MUST clear the old highlighted information.
-	# --------------------------------------------------------
-
 	if index < 0:
 
 		_hide_highlighted_info()
@@ -2357,10 +2867,6 @@ func _show_highlighted_info(
 
 	highlighted_rarity_label.visible = true
 
-	# --------------------------------------------------------
-	# ITEM PREVIEW
-	# --------------------------------------------------------
-
 	if highlighted_preview_icon != null:
 
 		highlighted_preview_icon.texture = item.preview
@@ -2368,10 +2874,6 @@ func _show_highlighted_info(
 		highlighted_preview_icon.visible = (
 			item.preview != null
 		)
-
-	# --------------------------------------------------------
-	# CLIPBOARD DESCRIPTION
-	# --------------------------------------------------------
 
 	var clipboard := get_node_or_null(
 		clipboard_path
@@ -2388,10 +2890,6 @@ func _show_highlighted_info(
 func _show_highlighted_trait_info(
 	index: int
 ) -> void:
-
-	# --------------------------------------------------------
-	# INVALID / EMPTY TRAIT SLOT
-	# --------------------------------------------------------
 
 	if index < 0:
 
@@ -2437,10 +2935,6 @@ func _show_highlighted_trait_info(
 
 	highlighted_rarity_label.visible = true
 
-	# --------------------------------------------------------
-	# TRAIT PREVIEW
-	# --------------------------------------------------------
-
 	if highlighted_preview_icon != null:
 
 		highlighted_preview_icon.texture = (
@@ -2450,10 +2944,6 @@ func _show_highlighted_trait_info(
 		highlighted_preview_icon.visible = (
 			trait_item.preview != null
 		)
-
-	# --------------------------------------------------------
-	# CLIPBOARD DESCRIPTION
-	# --------------------------------------------------------
 
 	var clipboard := get_node_or_null(
 		clipboard_path
@@ -2577,22 +3067,11 @@ func _hide_highlighted_info() -> void:
 
 		highlighted_rarity_label.visible = false
 
-	# --------------------------------------------------------
-	# HIGHLIGHTED PREVIEW
-	#
-	# Clear BOTH visibility and texture. This prevents an old
-	# preview from lingering if the icon is shown again later.
-	# --------------------------------------------------------
-
 	if highlighted_preview_icon:
 
 		highlighted_preview_icon.visible = false
 
 		highlighted_preview_icon.texture = null
-
-	# --------------------------------------------------------
-	# CLIPBOARD DESCRIPTION
-	# --------------------------------------------------------
 
 	var clipboard := get_node_or_null(
 		clipboard_path
@@ -2603,18 +3082,19 @@ func _hide_highlighted_info() -> void:
 		clipboard.hide_description()
 
 
+# ============================================================
+# UPDATE HIGHLIGHTED INFO
+# ============================================================
+
 func _update_highlighted_info() -> void:
+
+	if Engine.is_editor_hint():
+		return
 
 	if menu == null:
 		return
 
-	if menu.current == null:
-		return
-
-	_on_menu_selection_changed(
-		menu.current
-	)
-
+	_on_menu_selection_changed(menu.current)
 
 # ============================================================
 # PURCHASE PLACEMENT ICON
@@ -2766,6 +3246,8 @@ func _update_coin_display() -> void:
 		)
 
 	_update_clipboard_display()
+
+	_update_confirm_text()
 
 
 # ============================================================

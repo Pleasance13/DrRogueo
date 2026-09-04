@@ -1840,7 +1840,7 @@ func _start_boss_level() -> void:
 	var parent := boss_controller.get_parent()
 
 	if parent != null:
-		parent.move_child(
+		parent.move_child.call_deferred(
 			boss_controller,
 			min(4, parent.get_child_count() - 1)
 		)
@@ -2386,7 +2386,7 @@ func _handle_input(delta: float) -> void:
 	if (
 		current_pill != null
 		and current_pill.is_tether_pill
-		and Input.is_action_just_pressed("ui_accept")
+		and Input.is_action_just_pressed("item_use")
 	):
 
 		if await deploy_tether(
@@ -2407,7 +2407,7 @@ func _handle_input(delta: float) -> void:
 	if (
 		current_pill != null
 		and current_pill.is_ghost_pill
-		and Input.is_action_just_pressed("ui_accept")
+		and Input.is_action_just_pressed("item_use")
 	):
 
 		toggle_ghost_pill()
@@ -3868,6 +3868,7 @@ func settle_current_pill() -> void:
 	if current_pill.is_ghosting:
 
 		current_pill.is_ghosting = false
+		current_pill.is_ghost_pill = false
 
 
 	var half_1 := (

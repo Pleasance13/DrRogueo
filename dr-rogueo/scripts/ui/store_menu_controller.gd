@@ -391,7 +391,7 @@ func _cancel_purchase() -> void:
 
 	if store != null:
 
-		store.hide_purchase_preview()
+		store.hide_purchase_placement()
 
 
 	if (
@@ -430,7 +430,7 @@ func _cancel_trait_purchase() -> void:
 
 	if store != null:
 
-		store.hide_trait_purchase_preview()
+		store.hide_trait_purchase_placement()
 
 
 	if (
@@ -749,12 +749,22 @@ func _move(
 
 
 	# --------------------------------------------------------
+	# BUY / SELL BUTTON FOCUSED
+	#
+	# Only Accept or Cancel are valid while the buy/sell
+	# button has focus — dpad movement is locked out.
+	# --------------------------------------------------------
+
+	if current == buy_button:
+
+		return
+
+
+	# --------------------------------------------------------
 	# NORMAL NAVIGATION
 	# --------------------------------------------------------
 
-	var next := current.get_neighbor(
-		dir
-	) as MenuSelectable
+	var next := current.get_neighbor(dir) as MenuSelectable
 
 	if next:
 
@@ -1737,68 +1747,58 @@ func _update_button_visual() -> void:
 	if buy_button == null:
 		return
 
-
 	if buy_sell_texture == null:
 		return
-
 
 	var column: int = 1
 	var row: int = 0
 
+	# Only show an active buy/sell state while the button
+	# itself has focus. Otherwise stay neutral/greyed.
+	if current == buy_button:
 
-	# --------------------------------------------------------
-	# SELL
-	# --------------------------------------------------------
+		# SELL
+		if selected_owned_slot >= 0 or selected_owned_trait_slot >= 0:
 
-	if selected_owned_slot >= 0 or selected_owned_trait_slot >= 0:
+			column = 1
+			row = 1
 
-		column = 1
-		row = 1
-
-
-	# --------------------------------------------------------
-	# BUY
-	# --------------------------------------------------------
-
-	else:
-
-		if transaction_kind == TransactionKind.TRAIT:
-
-			var trait_item := _get_selected_store_trait()
-
-			if trait_item != null and store != null:
-
-				if store.get_coins() >= trait_item.cost:
-
-					column = 0
-					row = 1
-
-				else:
-
-					column = 0
-					row = 0
-
+		# BUY
 		else:
 
-			var item := _get_selected_store_item()
+			if transaction_kind == TransactionKind.TRAIT:
 
-			if item != null and store != null:
+				var trait_item := _get_selected_store_trait()
 
-				if store.get_coins() >= item.cost:
+				if trait_item != null and store != null:
 
-					column = 0
-					row = 1
+					if store.get_coins() >= trait_item.cost:
 
-				else:
+						column = 0
+						row = 1
 
-					column = 0
-					row = 0
+					else:
 
+						column = 0
+						row = 0
 
-	_set_button_sprite(
-		column,
-		row
-	)
+			else:
+
+				var item := _get_selected_store_item()
+
+				if item != null and store != null:
+
+					if store.get_coins() >= item.cost:
+
+						column = 0
+						row = 1
+
+					else:
+
+						column = 0
+						row = 0
+
+	_set_button_sprite(column, row)
 
 
 # ============================================================
