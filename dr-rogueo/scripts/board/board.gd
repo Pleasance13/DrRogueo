@@ -13,7 +13,6 @@ const CELL_SIZE := 8
 
 const BOARD_Y_OFFSET := 16
 
-
 # ============================================================
 # FALL SPEED
 # ============================================================
@@ -309,9 +308,12 @@ var store_waiting := false
 
 @export var clipboard_path: NodePath = NodePath("../Clipboard")
 
+@export var pill_preview_path: NodePath = NodePath("../Pill-preview")
+
 var od_gauge: OverdoseGauge
 var score_multiplier: ScoreMultiplier
 var clipboard: Clipboard
+var pill_preview: PillPreview
 
 
 # ============================================================
@@ -386,6 +388,10 @@ var lock_timer := 0.0
 
 var resolving_board := false
 
+# True while the just-spawned pill/item is arcing in from the
+# preview box. Gates input + falling until it lands.
+var _pill_throw_in_progress := false
+
 # Active Pong Paddle item minigame, or null when none is running.
 var pong_controller: PongController = null
 
@@ -450,6 +456,16 @@ func _ready() -> void:
 	) as ScoreMultiplier
 
 	clipboard = get_node_or_null(clipboard_path) as Clipboard
+
+	pill_preview = get_node_or_null(pill_preview_path) as PillPreview
+
+	if pill_preview == null:
+
+		push_warning(
+			"Board: could not find PillPreview at: "
+			+ str(pill_preview_path)
+			+ " -- pill throw animation will be skipped."
+		)
 
 	# Starting level (stage 1) background.
 	apply_new_level_background()
@@ -699,6 +715,10 @@ func _process(delta: float) -> void:
 		return
 
 
+	if _pill_throw_in_progress:
+		return
+
+
 	_handle_input(delta)
 
 	if current_pill == null:
@@ -825,6 +845,10 @@ func trigger_game_over() -> void:
 	game_over_timer = 0.0
 
 	print(">>> GAME OVER <<<")
+
+	if pill_preview != null:
+
+		pill_preview.play_game_over()
 
 
 	if current_pill != null:
@@ -1039,6 +1063,56 @@ func wrap_cell_if_needed(cell: Vector2i) -> Vector2i:
 	)
 
 
+func _apply_shift_wrap_visual() -> void:
+
+	if current_pill == null:
+		return
+
+	var is_horizontal: bool = (
+		current_pill.orientation == Pill.Orientation.LEFT
+		or current_pill.orientation == Pill.Orientation.RIGHT
+	)
+
+	if not is_horizontal or not has_pacman_trait():
+
+		current_pill.shift_wrap_split = false
+		current_pill.shift_cell_1_offset = Vector2.ZERO
+		current_pill.shift_cell_2_offset = Vector2.ZERO
+		current_pill.queue_redraw()
+		return
+
+	var cell_1 := current_grid_position
+	var cell_2 := current_grid_position + Vector2i(1, 0)
+
+	var needs_wrap: bool = (
+		cell_1.x < 0 or cell_1.x >= BOARD_WIDTH
+		or cell_2.x < 0 or cell_2.x >= BOARD_WIDTH
+	)
+
+	if not needs_wrap:
+
+		current_pill.shift_wrap_split = false
+		current_pill.shift_cell_1_offset = Vector2.ZERO
+		current_pill.shift_cell_2_offset = Vector2.ZERO
+		current_pill.queue_redraw()
+		return
+
+	var wrapped_1 := wrap_cell_if_needed(cell_1)
+	var wrapped_2 := wrap_cell_if_needed(cell_2)
+
+	current_pill.shift_cell_1_offset = (
+		grid_to_local(wrapped_1) - grid_to_local(cell_1)
+	)
+
+	current_pill.shift_cell_2_offset = (
+		grid_to_local(wrapped_2) - grid_to_local(cell_2)
+	)
+
+	current_pill.shift_wrap_split = true
+
+	current_pill.queue_redraw()
+
+
 func _apply_wrap_visual_offsets() -> void:
 
 	if current_pill == null:
@@ -1047,8 +1121,10 @@ func _apply_wrap_visual_offsets() -> void:
 	current_pill.tether_half_1_offset = Vector2.ZERO
 	current_pill.tether_half_2_offset = Vector2.ZERO
 
-	# Shift keeps its existing special handling.
 	if current_pill.is_shift_pill:
+
+		_apply_shift_wrap_visual()
+
 		return
 
 	var half_1_cell := current_pill.get_half_1_cell(
@@ -2174,15 +2250,7 @@ func create_next_preview() -> void:
 	randomize_pill_colors(next_pill)
 
 
-	var preview_position := Vector2i(
-		BOARD_WIDTH / 2 - 1,
-		-7
-	)
-
-
-	next_pill.position = grid_to_local(
-		preview_position
-	)
+	next_pill.global_position = pill_preview.get_throw_start_position()
 
 
 	# ========================================================
@@ -2207,8 +2275,8 @@ func create_next_preview() -> void:
 				next_pill_item.icon
 			)
 
-			next_item_preview.position = (
-				grid_to_local(preview_position)
+			next_item_preview.global_position = (
+				pill_preview.get_throw_start_position()
 			)
 
 			add_child(next_item_preview)
@@ -2227,6 +2295,35 @@ func spawn_pill() -> void:
 		var pong_item := next_pill_item
 
 		clear_next_pill_item()
+
+
+		# ----------------------------------------------------
+		# PONG has no falling Pill node to throw -- arc its
+		# icon in instead, with no rotation, before the
+		# minigame actually starts.
+		# ----------------------------------------------------
+
+		if pong_item.icon != null and pill_preview != null:
+
+			var icon := Sprite2D.new()
+
+			icon.texture = pong_item.icon
+			icon.centered = true
+
+			add_child(icon)
+
+			var target_global := to_global(
+				grid_to_local(
+					Vector2i(BOARD_WIDTH / 2 - 1, 0)
+				)
+			)
+
+			await pill_preview.throw_icon(icon, target_global)
+
+			if is_instance_valid(icon):
+
+				icon.queue_free()
+
 
 		pong_item.use(self)
 
@@ -2360,7 +2457,31 @@ func spawn_pill() -> void:
 		return
 
 
-	update_pill_position()
+	# ========================================================
+	# THROW ANIMATION
+	# ========================================================
+	#
+	# Arc the pill in from the preview box, spinning through
+	# its orientation frames. All the actual animation lives
+	# in PillPreview -- Board just locks out input/falling
+	# until it lands.
+	# ========================================================
+
+	var target_global := to_global(
+		grid_to_local(current_grid_position)
+	)
+
+	_pill_throw_in_progress = true
+
+	if pill_preview != null:
+
+		await pill_preview.throw_pill(current_pill, target_global)
+
+	_pill_throw_in_progress = false
+
+	if is_instance_valid(current_pill):
+
+		update_pill_position()
 
 
 	# ========================================================
@@ -2369,24 +2490,7 @@ func spawn_pill() -> void:
 
 	next_pill_item = null
 
-
-	# ========================================================
-	# CREATE A NEW NORMAL PREVIEW
-	# ========================================================
-
 	create_next_preview()
-
-
-	# ========================================================
-	# NOTE: We do NOT fire the item here.
-	#
-	# Next-pill items like Tether need the player to steer the
-	# pill into position first. Firing happens only when the
-	# player deploys it (see _handle_input) or when the pill
-	# locks in without being deployed (see settle_current_pill),
-	# both of which go through Inventory.fire_pending().
-	#
-	# ========================================================
 
 
 # ============================================================
@@ -2623,14 +2727,6 @@ func can_pill_occupy(
 
 	var ghosting := current_pill.is_ghosting
 
-
-	# --------------------------------------------------------
-	# PACMAN WRAP
-	#
-	# Tether/Shift pills are excluded -- their deployment /
-	# shift-direction logic assumes a normal contiguous board
-	# and isn't wrap-aware yet.
-	# --------------------------------------------------------
 
 	var wrap_horizontal: bool = (
 		has_pacman_trait()
@@ -3711,7 +3807,7 @@ func arm_next_pill_item(item: Item) -> bool:
 
 		next_item_preview.texture = item.icon
 
-		next_item_preview.position = next_pill.position + Vector2(-3,-3)
+		next_item_preview.position = next_pill.position + Vector2(-3,-4)
 
 		add_child(next_item_preview)
 

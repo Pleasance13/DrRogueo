@@ -104,12 +104,11 @@ var tether_half_2_offset := Vector2.ZERO
 		shift_sprite_texture = value
 		_update_pill()
 
-
-# True while playing the brief "disappearing" frame right after
-# a Shift Pill settles, before Board actually removes it and
-# triggers the gravity shift. See Pill.play_shift_vanish().
 var shift_vanishing := false
 
+var shift_wrap_split := false
+var shift_cell_1_offset := Vector2.ZERO
+var shift_cell_2_offset := Vector2.ZERO
 
 # ============================================================
 # DISSOLVER
@@ -721,11 +720,16 @@ func _draw_shift() -> void:
 	if shift_sprite_texture == null:
 		return
 
-
 	var is_vertical := (
 		orientation == Orientation.UP
 		or orientation == Orientation.DOWN
 	)
+
+	if not is_vertical and shift_wrap_split:
+
+		_draw_shift_wrap_split()
+
+		return
 
 
 	var region: Rect2
@@ -775,6 +779,40 @@ func _draw_shift() -> void:
 			dest_size
 		),
 		region
+	)
+
+
+func _draw_shift_wrap_split() -> void:
+
+	var region: Rect2
+
+	if shift_vanishing:
+		region = SHIFT_VANISH_HORIZONTAL
+	elif orientation == Orientation.LEFT:
+		region = SHIFT_LEFT
+	else:
+		region = SHIFT_RIGHT
+
+	var region_1 := Rect2(
+		region.position,
+		Vector2(CELL_SIZE, CELL_SIZE)
+	)
+
+	var region_2 := Rect2(
+		region.position + Vector2(CELL_SIZE, 0),
+		Vector2(CELL_SIZE, CELL_SIZE)
+	)
+
+	draw_texture_rect_region(
+		shift_sprite_texture,
+		Rect2(shift_cell_1_offset, Vector2(CELL_SIZE, CELL_SIZE)),
+		region_1
+	)
+
+	draw_texture_rect_region(
+		shift_sprite_texture,
+		Rect2(Vector2(CELL_SIZE, 0) + shift_cell_2_offset, Vector2(CELL_SIZE, CELL_SIZE)),
+		region_2
 	)
 
 

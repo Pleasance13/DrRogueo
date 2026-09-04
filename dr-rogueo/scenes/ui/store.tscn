@@ -16,7 +16,7 @@
 [ext_resource type="Texture2D" uid="uid://q2ad67x7uyyg" path="res://art/ui/toad-body.png" id="13_p55js"]
 [ext_resource type="Texture2D" uid="uid://gepav3cyhnrn" path="res://art/ui/toad-head-mouthclose.png" id="14_qvgk3"]
 [ext_resource type="Texture2D" uid="uid://b5u2bdbafkkvk" path="res://art/ui/toad-head-default.png" id="15_v17vb"]
-[ext_resource type="Script" uid="uid://bpia67jmgasqf" path="res://scenes/ui/toad.gd" id="16_1ef5v"]
+[ext_resource type="Script" uid="uid://bpia67jmgasqf" path="res://scripts/ui/toad.gd" id="16_1ef5v"]
 [ext_resource type="Texture2D" uid="uid://c3mx6kweocunx" path="res://art/ui/toad-head-blink.png" id="16_lp6vt"]
 [ext_resource type="Texture2D" uid="uid://cvl8ef4vbgtlw" path="res://art/ui/buy-button.png" id="17_qyicm"]
 [ext_resource type="Script" uid="uid://doyr6l3y6nk8q" path="res://scripts/ui/menu_selectable.gd" id="18_qvgk3"]

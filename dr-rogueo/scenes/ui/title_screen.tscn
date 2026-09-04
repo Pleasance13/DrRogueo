@@ -12,11 +12,11 @@
 [ext_resource type="Resource" uid="uid://bdqjqfsniyex0" path="res://art/palettes/background_preset_store.tres" id="10_5c0cl"]
 [ext_resource type="Texture2D" uid="uid://cx8vgl3x6kd3t" path="res://art/ui/logo-pill.png" id="11_ytagk"]
 [ext_resource type="Texture2D" uid="uid://g6don2k7xywb" path="res://art/ui/logo-virus.png" id="12_qo84g"]
-[ext_resource type="Script" uid="uid://yir8nuf2e2r" path="res://scenes/ui/title_virus.gd" id="13_5p4sa"]
+[ext_resource type="Script" uid="uid://yir8nuf2e2r" path="res://scripts/ui/title_virus.gd" id="13_5p4sa"]
 [ext_resource type="Texture2D" uid="uid://b4rs84a7bfdhu" path="res://art/ui/logo.png" id="13_nccv4"]
 [ext_resource type="Texture2D" uid="uid://tip0vnqhkynr" path="res://art/ui/press-A.png" id="15_tqags"]
-[ext_resource type="Script" uid="uid://c8s1iuq41dh62" path="res://scenes/ui/press_a.gd" id="16_to824"]
-[ext_resource type="Script" uid="uid://blxe3g54reiaj" path="res://scenes/ui/title_screen.gd" id="17_titlescr"]
+[ext_resource type="Script" uid="uid://c8s1iuq41dh62" path="res://scripts/ui/press_a.gd" id="16_to824"]
+[ext_resource type="Script" uid="uid://blxe3g54reiaj" path="res://scripts/ui/title_screen.gd" id="17_titlescr"]
 
 [node name="TitleScreen" type="Node2D"]
 texture_filter = 1

@@ -9,7 +9,7 @@ void fragment() {
 	vec2 center = vec2(0.5, 0.5);
 	vec2 offset = UV - center;
 
-	float angle = atan(offset.y, offset.x);
+	float angle = atan(-offset.y, offset.x);
 
 	float normalized_angle = (angle + PI) / (2.0 * PI);
 

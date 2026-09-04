@@ -1,10 +1,16 @@
-[gd_scene load_steps=3 format=3 uid="uid://bmewfptcmpfog"]
+[gd_scene load_steps=4 format=3 uid="uid://bmewfptcmpfog"]
 
 [ext_resource type="Texture2D" uid="uid://bq8mt0k366bje" path="res://art/ui/pill-preview-box.png" id="1_73dgy"]
 [ext_resource type="Texture2D" uid="uid://48wfo663vo7x" path="res://art/ui/mario-pill-preview.png" id="2_b331r"]
+[ext_resource type="Script" uid="uid://bj4rcetl8y8bi" path="res://scripts/ui/pill_preview.gd" id="3_pprev"]
 
 [node name="Pill-preview" type="Node2D"]
 texture_filter = 1
+script = ExtResource("3_pprev")
+throw_frame_duration = 0.2
+throw_rotations = 4.0
+throw_arc_height = 32.0
+throw_rotation_direction = 1
 
 [node name="PreviewBox" type="Sprite2D" parent="."]
 position = Vector2(226, 32)
@@ -12,8 +18,11 @@ texture = ExtResource("1_73dgy")
 centered = false
 
 [node name="Mario" type="Sprite2D" parent="PreviewBox"]
-position = Vector2(8, 8)
+position = Vector2(8, 12)
 texture = ExtResource("2_b331r")
 centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 40, 40)
+
+[node name="ThrowOrigin" type="Marker2D" parent="."]
+position = Vector2(241, 38)
