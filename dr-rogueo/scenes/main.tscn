@@ -124,8 +124,6 @@ debug_trait_slot_2 = "None"
 debug_trait_slot_3 = "PACMAN"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
-game_over_panel_size = null
-game_over_panel_color = null
 
 [node name="Items" parent="Board" instance=ExtResource("7_trceg")]
 position = Vector2(-162, -120)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3 uid="uid://b0becqhd40ctb"]
+[gd_scene load_steps=19 format=3 uid="uid://b0becqhd40ctb"]
 
 [ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_1oiph"]
 [ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_5p4sa"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" uid="uid://yir8nuf2e2r" path="res://scripts/ui/title_virus.gd" id="13_5p4sa"]
 [ext_resource type="Texture2D" uid="uid://b4rs84a7bfdhu" path="res://art/ui/logo.png" id="13_nccv4"]
 [ext_resource type="Texture2D" uid="uid://tip0vnqhkynr" path="res://art/ui/press-A.png" id="15_tqags"]
+[ext_resource type="Texture2D" uid="uid://dovbfdl82aqgm" path="res://art/ui/newgame.png" id="16_jqmgk"]
 [ext_resource type="Script" uid="uid://c8s1iuq41dh62" path="res://scripts/ui/press_a.gd" id="16_to824"]
 [ext_resource type="Script" uid="uid://blxe3g54reiaj" path="res://scripts/ui/title_screen.gd" id="17_titlescr"]
 
@@ -58,7 +59,7 @@ position = Vector2(248, 86)
 texture = ExtResource("12_qo84g")
 centered = false
 region_enabled = true
-region_rect = Rect2(0, 0, 44, 25)
+region_rect = Rect2(0, 25, 44, 25)
 script = ExtResource("13_5p4sa")
 
 [node name="TitleLogo" type="Sprite2D" parent="Title"]
@@ -66,12 +67,19 @@ position = Vector2(128, 86)
 texture = ExtResource("13_nccv4")
 centered = false
 
-[node name="PressA" type="Sprite2D" parent="."]
-position = Vector2(173, 152)
+[node name="NewGame" type="Node2D" parent="."]
+position = Vector2(147, 152)
+
+[node name="Speed" type="Sprite2D" parent="NewGame"]
+texture = ExtResource("16_jqmgk")
+centered = false
+
+[node name="PressA" type="Sprite2D" parent="NewGame"]
+position = Vector2(28, 21)
 texture = ExtResource("15_tqags")
 centered = false
 region_enabled = true
-region_rect = Rect2(0, 0, 85, 24)
+region_rect = Rect2(0, 24, 85, 24)
 script = ExtResource("16_to824")
 
 [editable path="SubViewportContainer/SubViewport/Background"]
