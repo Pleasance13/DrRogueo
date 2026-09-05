@@ -601,6 +601,31 @@ func _deal_damage() -> void:
 
 
 # ============================================================
+# DIRECT DAMAGE (non-indicator sources, e.g. Thwomp)
+# ============================================================
+
+func take_direct_damage(amount: int = 1) -> void:
+
+	if defeated or board == null or busy:
+		return
+
+	busy = true
+
+	health -= amount
+
+	if healthbar != null:
+		healthbar.set_health(health)
+
+	if health <= 0:
+
+		await _play_death()
+
+		return
+
+	busy = false
+
+
+# ============================================================
 # DEATH
 # ============================================================
 

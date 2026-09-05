@@ -60,6 +60,8 @@ var level: int = 1
 
 @export var ghost_sprite_texture: Texture2D
 
+@export var thwomp_sprite_texture: Texture2D
+
 
 # ============================================================
 # SHIFT
@@ -340,6 +342,9 @@ var game_over_font_size: int = 16
 
 @export var game_over_font_color: Color = Color.WHITE
 
+@export var game_over_panel_size := Vector2(160, 24)
+@export var game_over_panel_color := Color(0, 0, 0, 0)
+
 var game_over := false
 var game_over_label: Label
 
@@ -394,6 +399,9 @@ var _pill_throw_in_progress := false
 
 # Active Pong Paddle item minigame, or null when none is running.
 var pong_controller: PongController = null
+
+# Active Thwomp item controller, or null when none is running.
+var thwomp_controller: ThwompController = null
 
 # Active boss fight controller, or null outside the boss level.
 var boss_controller: Boss1Controller = null
@@ -698,6 +706,13 @@ func _process(delta: float) -> void:
 
 	pong_controller = null
 
+	# --------------------------------------------------------
+	# THWOMP ITEM ACTIVE
+	# --------------------------------------------------------
+
+	if is_instance_valid(thwomp_controller):
+		return
+
 
 	# --------------------------------------------------------
 	# NO ACTIVE PILL
@@ -872,7 +887,9 @@ func trigger_game_over() -> void:
 		next_item_preview = null
 
 
-	set_transition_black(true)
+	# Deliberately NOT a full black screen anymore -- the board
+	# and Mario's game-over pose (Pill-preview) stay visible.
+	set_transition_black(false)
 
 
 	if game_over_label != null:
@@ -890,17 +907,50 @@ func create_game_over_label() -> void:
 
 	game_over_label.name = "GameOverLabel"
 
-	game_over_label.text = "GAME OVER"
+	game_over_label.text = "GAME
+	OVER"
 
 	game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	game_over_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
-	game_over_label.set_anchors_and_offsets_preset(
-		Control.PRESET_FULL_RECT
-	)
-
 	game_over_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+	# ========================================================
+	# SIZE / POSITION
+	#
+	# No longer a full-screen rect -- just big enough for the
+	# text plus a small readability backdrop, centered on
+	# screen, so the frozen board and Mario stay visible.
+	# ========================================================
+
+	var viewport_size := get_viewport().get_visible_rect().size
+
+	game_over_label.size = game_over_panel_size
+
+	game_over_label.position = (
+		(viewport_size - game_over_panel_size) / 2.0
+	).floor()
+
+
+	# ========================================================
+	# BACKDROP (readability only, not a full black screen)
+	# ========================================================
+
+	var backdrop := StyleBoxFlat.new()
+
+	backdrop.bg_color = game_over_panel_color
+
+	backdrop.corner_radius_top_left = 3
+	backdrop.corner_radius_top_right = 3
+	backdrop.corner_radius_bottom_left = 3
+	backdrop.corner_radius_bottom_right = 3
+
+	game_over_label.add_theme_stylebox_override(
+		"normal",
+		backdrop
+	)
 
 
 	# ========================================================
@@ -2326,6 +2376,40 @@ func spawn_pill() -> void:
 
 
 		pong_item.use(self)
+
+		return
+
+
+	if next_pill_item != null and next_pill_item.id == "thwomp":
+
+		var thwomp_item := next_pill_item
+
+		clear_next_pill_item()
+
+
+		if thwomp_item.icon != null and pill_preview != null:
+
+			var icon := Sprite2D.new()
+
+			icon.texture = thwomp_item.icon
+			icon.centered = true
+
+			add_child(icon)
+
+			var target_global := to_global(
+				grid_to_local(
+					Vector2i(BOARD_WIDTH / 2 - 1, 0)
+				)
+			)
+
+			await pill_preview.throw_icon(icon, target_global)
+
+			if is_instance_valid(icon):
+
+				icon.queue_free()
+
+
+		thwomp_item.use(self)
 
 		return
 
@@ -4919,6 +5003,111 @@ func _resolve_pong_break() -> void:
 			controller.stop()
 
 		await advance_to_next_level()
+
+
+# ============================================================
+# THWOMP ITEM
+# ============================================================
+
+func start_thwomp_item() -> void:
+
+	if is_instance_valid(thwomp_controller):
+		return
+
+	thwomp_controller = ThwompController.new()
+
+	add_child(thwomp_controller)
+
+	thwomp_controller.start(self)
+
+
+func crush_cell(cell: Vector2i) -> bool:
+
+	# Reuses Ghost's replace-clear logic: separates partners,
+	# vanishes pill halves, removes tethers, and clears viruses
+	# WITHOUT awarding coins.
+	return _clear_cell_for_ghost_replace(cell)
+
+
+func on_thwomp_finished() -> void:
+
+	thwomp_controller = null
+
+	if transitioning_level:
+		return
+
+	if game_over:
+		return
+
+	resolving_board = true
+
+	await wait_for_vanishing_halves()
+
+	await apply_gravity()
+
+	var level_cleared := await _resolve_matches_and_gravity()
+
+	resolving_board = false
+
+	if level_cleared:
+
+		await advance_to_next_level()
+
+		return
+
+	spawn_pill()
+
+
+# ============================================================
+# SCREEN SHAKE
+# ============================================================
+
+var _screen_shake_id := 0
+var _screen_shake_active := false
+var _shake_rest_position := Vector2.ZERO
+
+func do_screen_shake(
+	intensity: float = 3.0,
+	duration: float = 0.2
+) -> void:
+
+	# A newer shake always supersedes an older one in progress,
+	# rather than being silently dropped by it (this is what
+	# was swallowing the bottom-impact shake when a row-hit
+	# shake was still running from the final row).
+	_screen_shake_id += 1
+
+	var my_id := _screen_shake_id
+
+	if not _screen_shake_active:
+
+		_shake_rest_position = position
+
+	_screen_shake_active = true
+
+	var elapsed := 0.0
+
+	while elapsed < duration:
+
+		# A newer call has taken over -- stop touching position
+		# and let that one own the rest/cleanup.
+		if my_id != _screen_shake_id:
+			return
+
+		position = _shake_rest_position + Vector2(
+			randf_range(-intensity, intensity),
+			randf_range(-intensity, intensity)
+		)
+
+		await get_tree().create_timer(0.02).timeout
+
+		elapsed += 0.02
+
+	if my_id == _screen_shake_id:
+
+		position = _shake_rest_position
+
+		_screen_shake_active = false
 
 
 # ============================================================
