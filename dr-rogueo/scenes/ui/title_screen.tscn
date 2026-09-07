@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://b0becqhd40ctb"]
+[gd_scene load_steps=21 format=3 uid="uid://b0becqhd40ctb"]
 
 [ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_1oiph"]
 [ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_5p4sa"]
@@ -17,7 +17,9 @@
 [ext_resource type="Texture2D" uid="uid://tip0vnqhkynr" path="res://art/ui/press-A.png" id="15_tqags"]
 [ext_resource type="Texture2D" uid="uid://dovbfdl82aqgm" path="res://art/ui/newgame.png" id="16_jqmgk"]
 [ext_resource type="Script" uid="uid://c8s1iuq41dh62" path="res://scripts/ui/press_a.gd" id="16_to824"]
+[ext_resource type="Script" uid="uid://u55hkdpblnrq" path="res://scripts/ui/speed_picker.gd" id="17_rtmth"]
 [ext_resource type="Script" uid="uid://blxe3g54reiaj" path="res://scripts/ui/title_screen.gd" id="17_titlescr"]
+[ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="18_7avnr"]
 
 [node name="TitleScreen" type="Node2D"]
 texture_filter = 1
@@ -59,7 +61,7 @@ position = Vector2(248, 86)
 texture = ExtResource("12_qo84g")
 centered = false
 region_enabled = true
-region_rect = Rect2(0, 25, 44, 25)
+region_rect = Rect2(0, 0, 44, 25)
 script = ExtResource("13_5p4sa")
 
 [node name="TitleLogo" type="Sprite2D" parent="Title"]
@@ -73,13 +75,30 @@ position = Vector2(147, 152)
 [node name="Speed" type="Sprite2D" parent="NewGame"]
 texture = ExtResource("16_jqmgk")
 centered = false
+script = ExtResource("17_rtmth")
+label_font = ExtResource("18_7avnr")
+label_position = Vector2(65, 8)
+slow_color = Color(0.376471, 0.627451, 1, 1)
+med_color = Color(0.909804, 0.815686, 0.12549, 1)
+high_color = Color(0.972549, 0.188235, 0.345098, 1)
+
+[node name="SpeedLabel" type="Label" parent="NewGame/Speed"]
+offset_left = 65.0
+offset_top = 8.0
+offset_right = 145.0
+offset_bottom = 24.0
+theme_override_colors/font_color = Color(0.376471, 0.627451, 1, 1)
+theme_override_fonts/font = ExtResource("18_7avnr")
+theme_override_font_sizes/font_size = 8
+text = "SLOW"
+horizontal_alignment = 1
 
 [node name="PressA" type="Sprite2D" parent="NewGame"]
 position = Vector2(28, 21)
 texture = ExtResource("15_tqags")
 centered = false
 region_enabled = true
-region_rect = Rect2(0, 24, 85, 24)
+region_rect = Rect2(0, 0, 85, 24)
 script = ExtResource("16_to824")
 
 [editable path="SubViewportContainer/SubViewport/Background"]

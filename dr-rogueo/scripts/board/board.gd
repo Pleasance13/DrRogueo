@@ -101,7 +101,7 @@ var debug_stage: int = 1
 @export_range(1, 3, 1)
 var debug_level_in_stage: int = 1
 
-@export_enum("LOW", "MEDIUM", "HIGH")
+@export_enum("SLOW", "MEDIUM", "HIGH")
 var debug_fall_speed: int = FallSpeed.LOW
 
 @export_range(0, 999, 1)
@@ -391,6 +391,16 @@ var _pill_is_wrap_split := false
 var fall_timer := 0.0
 var lock_timer := 0.0
 
+# Caps how many times rotating/moving while grounded can refresh
+# lock_timer, preventing indefinite stalling via button-mashing.
+# Refills whenever the pill becomes airborne again. The original
+# NES game has zero grace period at all; this is our compromise.
+const MAX_LOCK_RESETS_LOW := 4
+const MAX_LOCK_RESETS_MEDIUM := 2
+const MAX_LOCK_RESETS_HIGH := 1
+
+var lock_reset_count := 0
+
 var resolving_board := false
 
 # True while the just-spawned pill/item is arcing in from the
@@ -421,9 +431,6 @@ var virus_cells: Dictionary = {}
 # Node2D -> remaining time
 var vanishing_halves: Dictionary = {}
 
-var _z_was_pressed := false
-var _x_was_pressed := false
-
 const HORIZONTAL_REPEAT_INTERVAL := float(SOFT_DROP_FRAMES * 2) / 60.0  # half speed of soft drop
 
 var _left_hold_timer := 0.0
@@ -431,8 +438,6 @@ var _right_hold_timer := 0.0
 
 var is_paused := false
 var pause_label: Label
-
-var _soft_dropping := false
 
 var rng := RandomNumberGenerator.new()
 
@@ -485,6 +490,9 @@ func _ready() -> void:
 	TraitInventory.reset()
 
 	_apply_debug_settings()
+
+	if not debug_enabled:
+		fall_speed = GameSettings.selected_fall_speed
 
 	# Create the preview first.
 	create_next_preview()
@@ -775,8 +783,6 @@ func _process(delta: float) -> void:
 	# --------------------------------------------------------
 
 	if can_fall:
-
-		lock_timer = 0.0
 
 		var interval := get_fall_interval()
 
@@ -1284,7 +1290,7 @@ func get_fall_speed_name() -> String:
 	match fall_speed:
 
 		FallSpeed.LOW:
-			return "LOW"
+			return "SLOW"
 
 		FallSpeed.MEDIUM:
 			return "MED"
@@ -1292,7 +1298,7 @@ func get_fall_speed_name() -> String:
 		FallSpeed.HIGH:
 			return "HIGH"
 
-	return "LOW"
+	return "SLOW"
 
 
 # ============================================================
@@ -1703,6 +1709,22 @@ func get_fall_interval() -> float:
 func get_lock_interval() -> float:
 
 	return get_fall_interval() * 0.5
+
+
+func get_max_lock_resets() -> int:
+
+	match fall_speed:
+
+		FallSpeed.LOW:
+			return MAX_LOCK_RESETS_LOW
+
+		FallSpeed.MEDIUM:
+			return MAX_LOCK_RESETS_MEDIUM
+
+		FallSpeed.HIGH:
+			return MAX_LOCK_RESETS_HIGH
+
+	return MAX_LOCK_RESETS_LOW
 
 
 const SOFT_DROP_FRAMES := 6
@@ -2522,6 +2544,7 @@ func spawn_pill() -> void:
 	fall_timer = 0.0
 
 	lock_timer = 0.0
+	lock_reset_count = 0
 
 
 	# ========================================================
@@ -2630,22 +2653,28 @@ func _handle_input(delta: float) -> void:
 	if Input.is_action_just_pressed("ui_left"):
 		try_move_pill(Vector2i(-1, 0))
 		_left_hold_timer = 0.0
+
 	elif Input.is_action_pressed("ui_left"):
 		_left_hold_timer += delta
+
 		if _left_hold_timer >= HORIZONTAL_REPEAT_INTERVAL:
 			_left_hold_timer -= HORIZONTAL_REPEAT_INTERVAL
 			try_move_pill(Vector2i(-1, 0))
+
 	else:
 		_left_hold_timer = 0.0
 
 	if Input.is_action_just_pressed("ui_right"):
 		try_move_pill(Vector2i(1, 0))
 		_right_hold_timer = 0.0
+
 	elif Input.is_action_pressed("ui_right"):
 		_right_hold_timer += delta
+
 		if _right_hold_timer >= HORIZONTAL_REPEAT_INTERVAL:
 			_right_hold_timer -= HORIZONTAL_REPEAT_INTERVAL
 			try_move_pill(Vector2i(1, 0))
+
 	else:
 		_right_hold_timer = 0.0
 
@@ -2695,11 +2724,24 @@ func try_move_pill(
 	update_pill_position()
 
 
-	if can_pill_occupy(
-		current_grid_position + Vector2i(0, 1)
-	):
+	if direction == Vector2i(0, 1):
 
+		# Genuine downward progress -- full refill.
 		lock_timer = 0.0
+		lock_reset_count = 0
+
+	else:
+
+		# Sideways movement never advances the pill's row, so it
+		# always spends from the shared budget -- never a free
+		# reset -- no matter what the resulting footprint can or
+		# can't do next. This is what keeps a piece bouncing
+		# between "grounded" and "technically able to fall" from
+		# costing less than a piece that's grounded either way.
+		lock_reset_count += 1
+
+		if lock_reset_count <= get_max_lock_resets():
+			lock_timer = 0.0
 
 
 	return true
@@ -3701,8 +3743,9 @@ func solidify_ghost_pill() -> void:
 			destroyed_something = true
 
 
-	lock_timer = 0.0
 	fall_timer = 0.0
+	lock_timer = 0.0
+	lock_reset_count = 0
 
 
 	if destroyed_something and _no_more_enemies():
@@ -3974,17 +4017,26 @@ func _try_rotate(
 
 			update_pill_position()
 
-			lock_timer = 0.0
+
+			# A rotation never advances the pill's row, so -- just
+			# like sideways movement -- it always spends from the
+			# shared budget rather than a free reset, regardless of
+			# whether the new orientation happens to have open
+			# space beneath it. This is what closes the exploit
+			# where alternating between a grounded orientation and
+			# one that merely "can fall" (without ever actually
+			# falling) granted extra free spins.
+			lock_reset_count += 1
+
+			if lock_reset_count <= get_max_lock_resets():
+				lock_timer = 0.0
+
 
 			return true
 
 
 	current_pill.orientation = old_orientation
 
-	# current_grid_position didn't change here, so if the pill
-	# was wrap-split before this rotation attempt, it still is --
-	# restore that visual (Pill's own orientation setter just
-	# reset Half1/Half2 to a non-wrapped layout above).
 	_apply_wrap_visual_offsets()
 
 	return false
@@ -4012,6 +4064,7 @@ func settle_current_pill() -> void:
 
 		fall_timer = 0.0
 		lock_timer = 0.0
+		lock_reset_count = 0
 
 		next_pill_item = null
 
@@ -4041,6 +4094,7 @@ func settle_current_pill() -> void:
 
 		fall_timer = 0.0
 		lock_timer = 0.0
+		lock_reset_count = 0
 
 		next_pill_item = null
 

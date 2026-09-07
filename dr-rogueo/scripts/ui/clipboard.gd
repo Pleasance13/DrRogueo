@@ -433,7 +433,7 @@ func _set_editor_placeholder_text() -> void:
 		DisplayMode.STORE:
 
 			next_stage_header_label.text = "NXT STAGE"
-			next_stage_value_label.text = "2"
+			next_stage_value_label.text = "02"
 
 			store_coin_header_label.text = "COIN"
 			store_coin_value_label.text = "00"
@@ -441,10 +441,10 @@ func _set_editor_placeholder_text() -> void:
 		_:
 
 			stage_header_label.text = "STAGE"
-			stage_value_label.text = "1"
+			stage_value_label.text = "01"
 
 			level_header_label.text = "LEVEL"
-			level_value_label.text = "1/5"
+			level_value_label.text = "1/3"
 
 			virus_header_label.text = "VIRUS"
 			virus_value_label.text = "04"
@@ -452,7 +452,8 @@ func _set_editor_placeholder_text() -> void:
 			coin_header_label.text = "COIN"
 			coin_value_label.text = "00"
 
-			speed_header_label.text = "LOW"
+			speed_header_label.text = "SPEED"
+			speed_value_label.text = "SLOW"
 
 
 # ============================================================
@@ -1067,7 +1068,8 @@ func update_stats(
 	coin_header_label.text = "COIN"
 	coin_value_label.text = "%02d" % coin_count
 
-	speed_header_label.text = "%s" % speed_name
+	speed_header_label.text = "SPEED"
+	speed_value_label.text = "%s" % speed_name
 
 
 # ============================================================

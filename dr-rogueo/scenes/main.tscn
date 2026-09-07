@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3 uid="uid://7ml0t1gy6l3h"]
+[gd_scene format=3 uid="uid://7ml0t1gy6l3h"]
 
 [ext_resource type="PackedScene" uid="uid://b5teuusodhg1u" path="res://scenes/ui/checkerboard_bg.tscn" id="1_0wfyh"]
 [ext_resource type="Script" uid="uid://dx85mfsam74c6" path="res://scripts/global/pause_controller.gd" id="1_fv21b"]
@@ -25,33 +25,32 @@
 [ext_resource type="Resource" uid="uid://bdqjqfsniyex0" path="res://art/palettes/background_preset_store.tres" id="10_pm3ni"]
 [ext_resource type="Texture2D" uid="uid://w53stnxd6xfy" path="res://art/pills/tether_pill.png" id="12_a8y0u"]
 [ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="15_og1vs"]
-[ext_resource type="FontFile" uid="uid://dl2gw4blk118s" path="res://fonts/tiny-mono-pixel-font.ttf" id="17_yq6so"]
 [ext_resource type="PackedScene" uid="uid://dc1kkw0qxwj0y" path="res://scenes/ui/store.tscn" id="22_y6deb"]
 [ext_resource type="Texture2D" uid="uid://dmo06dxomchto" path="res://art/pills/shift_pill.png" id="23_2wyq8"]
 [ext_resource type="Texture2D" uid="uid://cxu60lwfk4ckh" path="res://art/pills/ghost_pill.png" id="24_vxglm"]
 [ext_resource type="Script" uid="uid://trlbol347e4y" path="res://scripts/boss/boss1_controller.gd" id="28_2f3dj"]
 [ext_resource type="Texture2D" uid="uid://q88p0he37odw" path="res://art/pills/thwomp.png" id="28_tel4y"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=1784675511]
 texture_filter = 1
 
-[node name="PauseController" type="Node" parent="."]
+[node name="PauseController" type="Node" parent="." unique_id=1937513060]
 script = ExtResource("1_fv21b")
 
-[node name="Boss1Controller" type="Node2D" parent="."]
+[node name="Boss1Controller" type="Node2D" parent="." unique_id=2139710573]
 script = ExtResource("28_2f3dj")
 magnifier_boss_position = Vector2(25, 17)
 
-[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+[node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1261090602]
 offset_right = 427.0
 offset_bottom = 240.0
 
-[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=1248934659]
 handle_input_locally = false
 size = Vector2i(427, 240)
 render_target_update_mode = 4
 
-[node name="Background" parent="SubViewportContainer/SubViewport" instance=ExtResource("1_0wfyh")]
+[node name="Background" parent="SubViewportContainer/SubViewport" unique_id=1553803035 instance=ExtResource("1_0wfyh")]
 wave_width = 1.5
 wave_depth = 0.03
 light_color = Color(0.898039, 0.552941, 0.407843, 1)
@@ -64,24 +63,20 @@ shade_strength = 1.0
 [node name="Checkerboard" parent="SubViewportContainer/SubViewport/Background" index="0"]
 position = Vector2(-2, 0)
 
-[node name="OD-gauge" parent="." instance=ExtResource("3_ya4ey")]
+[node name="OD-gauge" parent="." unique_id=26776686 instance=ExtResource("3_ya4ey")]
 position = Vector2(16, 32)
 warning_flash_interval = 0.25
 
-[node name="Score-multiplier" parent="." instance=ExtResource("4_eb6dy")]
+[node name="Score-multiplier" parent="." unique_id=1836900078 instance=ExtResource("4_eb6dy")]
 position = Vector2(79, 32)
 
-[node name="Magnifier" parent="." instance=ExtResource("5_a8y0u")]
+[node name="Magnifier" parent="." unique_id=1073357684 instance=ExtResource("5_a8y0u")]
 position = Vector2(16, 137)
 
-[node name="BossOverlay" type="Node2D" parent="Magnifier/Magnifying-Glass" index="0" groups=["boss_magnifier_slot"]]
+[node name="BossOverlay" type="Node2D" parent="Magnifier/Magnifying-Glass" index="0" unique_id=965414999 groups=["boss_magnifier_slot"]]
 
-[node name="Clipboard" parent="." instance=ExtResource("5_trceg")]
+[node name="Clipboard" parent="." unique_id=1388306697 instance=ExtResource("5_trceg")]
 position = Vector2(218, 23)
-header_font = ExtResource("15_og1vs")
-header_font_size = 8
-value_font = ExtResource("15_og1vs")
-value_font_size = 8
 value_alignment = 2
 stage_header_position = Vector2(108, 40)
 level_header_position = Vector2(108, 64)
@@ -93,16 +88,14 @@ level_value_position = Vector2(108, 70)
 virus_value_position = Vector2(108, 96)
 coin_value_position = Vector2(108, 120)
 speed_value_position = Vector2(108, 144)
-description_header_font = ExtResource("17_yq6so")
 description_header_alignment = 1
 description_header_position = Vector2(108, 34)
-description_value_font = ExtResource("17_yq6so")
 description_value_line_spacing = 2
 description_value_position = Vector2(108, 50)
 
-[node name="Pill-preview" parent="." instance=ExtResource("6_eb6dy")]
+[node name="Pill-preview" parent="." unique_id=1302045771 instance=ExtResource("6_eb6dy")]
 
-[node name="Board" parent="." node_paths=PackedStringArray("background") instance=ExtResource("1_o5qli")]
+[node name="Board" parent="." unique_id=1197160895 node_paths=PackedStringArray("background") instance=ExtResource("1_o5qli")]
 position = Vector2(162, 120)
 script = ExtResource("3_sugp2")
 pill_scene = ExtResource("4_tbgi4")
@@ -125,10 +118,10 @@ debug_trait_slot_3 = "PACMAN"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 
-[node name="Items" parent="Board" instance=ExtResource("7_trceg")]
+[node name="Items" parent="Board" unique_id=1457831794 instance=ExtResource("7_trceg")]
 position = Vector2(-162, -120)
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=481692199]
 visible = false
 texture_filter = 1
 texture = ExtResource("2_choun")

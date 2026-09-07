@@ -3,21 +3,28 @@ extends Node2D
 # ============================================================
 # TITLE SCREEN
 # ============================================================
-#
-# Waits for the player to press A (ui_accept) and then starts
-# a new run.
-#
-# TODO: once the speed/options select screen exists, this
-# should send the player there instead of straight into the
-# game. For now we skip straight to Stage 1 / Level 1 / Low
-# speed, which are the Board's defaults.
 
 const GAME_SCENE_PATH := "res://scenes/main.tscn"
+
+@export var speed_picker_path: NodePath = NodePath("NewGame/Speed")
+
+var speed_picker: SpeedPicker
+
+
+func _ready() -> void:
+
+	speed_picker = get_node_or_null(speed_picker_path) as SpeedPicker
 
 
 func _process(_delta: float) -> void:
 
 	if Input.is_action_just_pressed("ui_accept"):
+
+		if speed_picker != null:
+
+			GameSettings.selected_fall_speed = (
+				speed_picker.get_selected_fall_speed()
+			)
 
 		start_game()
 
