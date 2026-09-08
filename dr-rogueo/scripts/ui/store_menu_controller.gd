@@ -1298,7 +1298,7 @@ func _try_buy() -> void:
 
 	# StoreController handles both real-board and F6-debug
 	# coin sources.
-	if store.get_coins() < item.cost:
+	if store.get_coins() < store.get_effective_item_cost(store.last_selected_slot, item):
 		return
 
 
@@ -1788,7 +1788,12 @@ func _update_button_visual() -> void:
 
 				if item != null and store != null:
 
-					if store.get_coins() >= item.cost:
+					var cost := store.get_effective_item_cost(
+						store.last_selected_slot,
+						item
+					)
+
+					if store.get_coins() >= cost:
 
 						column = 0
 						row = 1

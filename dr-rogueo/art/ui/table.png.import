@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://codaryfupfqei"
-path="res://.godot/imported/clipboard.png-01ca938a1bfc665b8579d5e766be981b.ctex"
+uid="uid://cl624s0auauto"
+path="res://.godot/imported/table.png-4a9e2f4264c6da765d9595d7f4705e18.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/ui/clipboard.png"
-dest_files=["res://.godot/imported/clipboard.png-01ca938a1bfc665b8579d5e766be981b.ctex"]
+source_file="res://art/ui/table.png"
+dest_files=["res://.godot/imported/table.png-4a9e2f4264c6da765d9595d7f4705e18.ctex"]
 
 [params]
 

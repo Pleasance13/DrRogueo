@@ -25,6 +25,7 @@
 [ext_resource type="Resource" uid="uid://bdqjqfsniyex0" path="res://art/palettes/background_preset_store.tres" id="10_pm3ni"]
 [ext_resource type="Texture2D" uid="uid://w53stnxd6xfy" path="res://art/pills/tether_pill.png" id="12_a8y0u"]
 [ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="15_og1vs"]
+[ext_resource type="Texture2D" uid="uid://cl624s0auauto" path="res://art/ui/table.png" id="16_tel4y"]
 [ext_resource type="PackedScene" uid="uid://dc1kkw0qxwj0y" path="res://scenes/ui/store.tscn" id="22_y6deb"]
 [ext_resource type="Texture2D" uid="uid://dmo06dxomchto" path="res://art/pills/shift_pill.png" id="23_2wyq8"]
 [ext_resource type="Texture2D" uid="uid://cxu60lwfk4ckh" path="res://art/pills/ghost_pill.png" id="24_vxglm"]
@@ -75,23 +76,35 @@ position = Vector2(16, 137)
 
 [node name="BossOverlay" type="Node2D" parent="Magnifier/Magnifying-Glass" index="0" unique_id=965414999 groups=["boss_magnifier_slot"]]
 
+[node name="Table" type="Sprite2D" parent="." unique_id=1923237547]
+position = Vector2(218, 23)
+texture = ExtResource("16_tel4y")
+centered = false
+
 [node name="Clipboard" parent="." unique_id=1388306697 instance=ExtResource("5_trceg")]
 position = Vector2(218, 23)
-value_alignment = 2
-stage_header_position = Vector2(108, 40)
-level_header_position = Vector2(108, 64)
-virus_header_position = Vector2(108, 88)
-coin_header_position = Vector2(108, 112)
-speed_header_position = Vector2(108, 136)
-stage_value_position = Vector2(108, 48)
-level_value_position = Vector2(108, 70)
-virus_value_position = Vector2(108, 96)
-coin_value_position = Vector2(108, 120)
-speed_value_position = Vector2(108, 144)
+bonus_value_position = Vector2(108, 168)
 description_header_alignment = 1
 description_header_position = Vector2(108, 34)
 description_value_line_spacing = 2
 description_value_position = Vector2(108, 50)
+bonus_header_font_size = 6
+bonus_value_line_spacing = 0
+
+[node name="PauseBonusClipboard" parent="." unique_id=1015586933 instance=ExtResource("5_trceg")]
+process_mode = 3
+visible = false
+position = Vector2(-87, 23)
+display_mode = 2
+bonus_value_position = Vector2(108, 160)
+description_header_alignment = 1
+description_header_position = Vector2(108, 34)
+description_value_line_spacing = 2
+description_value_position = Vector2(108, 50)
+bonus_challenge_header_position = Vector2(108, 32)
+bonus_reward_header_position = Vector2(108, 72)
+bonus_challenge_value_position = Vector2(108, 42)
+bonus_reward_value_position = Vector2(108, 82)
 
 [node name="Pill-preview" parent="." unique_id=1302045771 instance=ExtResource("6_eb6dy")]
 
@@ -107,14 +120,9 @@ shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 thwomp_sprite_texture = ExtResource("28_tel4y")
 store_scene = ExtResource("22_y6deb")
-debug_stage = 4
-debug_coins = 50
-debug_item_slot_1 = "THWOMP"
-debug_item_slot_2 = "THWOMP"
-debug_item_slot_3 = "THWOMP"
-debug_trait_slot_1 = "None"
-debug_trait_slot_2 = "None"
-debug_trait_slot_3 = "PACMAN"
+debug_enabled = true
+debug_level_in_stage = 2
+debug_item_slot_1 = "TETHER PILL"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 

@@ -50,6 +50,7 @@ var ball_velocity := Vector2.ZERO
 
 var hit_cooldowns: Dictionary = {}
 
+var current_combo := 0
 var combo_timer := -1.0
 
 var active := false
@@ -929,11 +930,11 @@ func _check_cell_collision() -> void:
 
 				if broke:
 
-					combo_timer = (
-						COMBO_TIMER_DURATION
-					)
-
+					combo_timer = COMBO_TIMER_DURATION
 					_update_timer_visual()
+
+					current_combo += 1
+					board.notify_pong_combo(current_combo)
 
 
 			# ------------------------------------------------

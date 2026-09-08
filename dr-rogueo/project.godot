@@ -24,6 +24,8 @@ config/icon="res://icon.svg"
 Inventory="*res://scripts/items/inventory.gd"
 AnimClock="*res://scripts/global/anim_clock.gd"
 TraitInventory="*res://scripts/traits/trait_inventory.gd"
+BonusManager="*uid://cpnevypmee1e6"
+RunUpgrades="*uid://c3xnjealux7i6"
 
 [display]
 

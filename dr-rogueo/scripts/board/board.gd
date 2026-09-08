@@ -503,6 +503,11 @@ func _ready() -> void:
 	# Finally populate the board (or set up the boss fight).
 	_setup_level_content()
 
+	if level == 1:
+		RunUpgrades.reset()
+
+	BonusManager.start_level(self)
+
 
 # ============================================================
 # DEBUG SETTINGS (non-store, full-game testing)
@@ -1525,16 +1530,16 @@ func advance_to_next_level() -> void:
 	# ended, since the store already handles that hand-off).
 	# ========================================================
 
-	if not completed_stage:
+	BonusManager.start_level(self)
 
-		_show_level_transition_label(
-			get_stage(),
-			get_level_in_stage()
-		)
+	_show_level_transition_label(
+		get_stage(),
+		get_level_in_stage()
+	)
 
-		await _wait_for_accept()
+	await _wait_for_accept()
 
-		_hide_level_transition_label()
+	_hide_level_transition_label()
 
 
 	# ========================================================
@@ -1596,11 +1601,14 @@ func clear_tether_cells() -> void:
 # VIRUS-CLEAR COIN REWARD
 # ============================================================
 
-func award_virus_coins() -> void:
+func award_virus_coins(color: int = -1) -> void:
 
-	coins += COINS_PER_VIRUS
+	var multiplier := RunUpgrades.get_virus_coin_multiplier(color)
 
-	stage_coins_earned += COINS_PER_VIRUS
+	var amount := int(round(COINS_PER_VIRUS * multiplier))
+
+	coins += amount
+	stage_coins_earned += amount
 
 
 # ============================================================
@@ -4459,6 +4467,8 @@ func _resolve_matches_and_gravity() -> bool:
 
 			if virus != null:
 
+				var cleared_color := virus.virus_color
+
 				virus.visual_state = (
 					Virus.VisualState.VANISHING
 				)
@@ -4469,7 +4479,9 @@ func _resolve_matches_and_gravity() -> bool:
 					VANISH_DURATION
 				)
 
-				award_virus_coins()
+				award_virus_coins(cleared_color)
+
+				BonusManager.notify(self, "virus_cleared", {"color": cleared_color})
 
 				continue
 
@@ -5009,6 +5021,7 @@ func pong_break_cell(
 		if not virus.take_hit():
 			return false
 
+		var cleared_color := virus.virus_color
 
 		virus_cells.erase(cell)
 
@@ -5018,7 +5031,7 @@ func pong_break_cell(
 
 		vanishing_halves[virus] = VANISH_DURATION
 
-		award_virus_coins()
+		award_virus_coins(virus.virus_color)
 
 
 		_start_pong_break_resolution()
@@ -5057,6 +5070,10 @@ func _resolve_pong_break() -> void:
 			controller.stop()
 
 		await advance_to_next_level()
+
+
+func notify_pong_combo(combo: int) -> void:
+	BonusManager.notify(self, "pong_combo", {"combo": combo})
 
 
 # ============================================================

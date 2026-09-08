@@ -27,9 +27,9 @@ func _init() -> void:
 
 	rarity = Item.Rarity.EPIC
 
-	cost = 45
+	cost = 50
 
-	sell_price = 22
+	sell_price = 25
 
 	description = (
 		"A 3-wide Thwomp waits at the top of the board. Move it " +

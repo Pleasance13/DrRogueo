@@ -458,6 +458,10 @@ var store_items: Array[Item] = []
 
 var restock_cost := RESTOCK_BASE_COST
 
+# Index into store_items that's free due to RunUpgrades
+# .free_epic_item_next_store. -1 when no slot is free.
+var free_item_slot_index := -1
+
 var _restock_price_label: Label = null
 
 var selected_slot := -1
@@ -1652,7 +1656,73 @@ func _roll_stock() -> void:
 
 			store_items.append(null)
 
+	_apply_run_upgrade_stock_guarantees()
+
 	_update_slot_visuals()
+
+
+# ============================================================
+# RUN UPGRADE STOCK GUARANTEES
+# ============================================================
+
+func _apply_run_upgrade_stock_guarantees() -> void:
+
+	free_item_slot_index = -1
+
+	if not RunUpgrades.free_epic_item_next_store:
+		return
+
+	var epic_index := -1
+
+	for i in store_items.size():
+
+		var item := store_items[i]
+
+		if item != null and item.rarity == Item.Rarity.EPIC:
+
+			epic_index = i
+			break
+
+	if epic_index == -1:
+
+		var epic_item := _random_epic_item()
+
+		if epic_item == null:
+			return
+
+		epic_index = randi_range(0, store_items.size() - 1)
+
+		store_items[epic_index] = epic_item
+
+	free_item_slot_index = epic_index
+
+
+func _random_epic_item() -> Item:
+
+	var catalog: Array[Item] = StoreCatalog.create_catalog()
+
+	var epics: Array[Item] = []
+
+	for item in catalog:
+
+		if item != null and item.rarity == Item.Rarity.EPIC:
+			epics.append(item)
+
+	if epics.is_empty():
+		return null
+
+	return _fresh_item(epics[randi_range(0, epics.size() - 1)].id)
+
+
+func get_effective_item_cost(index: int, item: Item) -> int:
+
+	if item == null:
+		return 0
+
+	if index == free_item_slot_index:
+		return 0
+
+	return item.cost
 
 
 func _random_item(
@@ -2011,7 +2081,9 @@ func _add_item_visuals(
 
 	price_label.name = prefix + "Price"
 
-	price_label.text = "%02d" % item.cost
+	var effective_cost := get_effective_item_cost(slot_index, item)
+
+	price_label.text = "FREE" if effective_cost <= 0 else "%02d" % effective_cost
 
 	_apply_label_settings(
 		price_label,
@@ -2543,7 +2615,7 @@ func _update_confirm_text() -> void:
 		var item := menu._get_selected_store_item()
 
 		if item != null:
-			cost = item.cost
+			cost = get_effective_item_cost(last_selected_slot, item)
 
 	else:
 
@@ -2561,7 +2633,8 @@ func _update_confirm_text() -> void:
 	if get_coins() < cost:
 
 		_show_confirm_text(
-			"CAN'T AFFORD",
+			"CAN'T
+			AFFORD",
 			0,
 			false,
 			false
@@ -3466,7 +3539,7 @@ func buy_selected_item() -> Item:
 	if item == null:
 		return null
 
-	if get_coins() < item.cost:
+	if get_coins() < get_effective_item_cost(selected_slot, item):
 		return null
 
 	if Inventory.items.find(null) == -1:
@@ -3490,8 +3563,12 @@ func complete_purchase(
 		return
 
 	set_coins(
-		get_coins() - item.cost
+		get_coins() - get_effective_item_cost(store_slot, item)
 	)
+
+	if store_slot == free_item_slot_index:
+
+		free_item_slot_index = -1
 
 	_update_coin_display()
 
@@ -3746,5 +3823,8 @@ func _apply_pixel_font(
 # ============================================================
 
 func _on_continue_pressed() -> void:
+
+	RunUpgrades.free_epic_item_next_store = false
+	free_item_slot_index = -1
 
 	closed.emit()

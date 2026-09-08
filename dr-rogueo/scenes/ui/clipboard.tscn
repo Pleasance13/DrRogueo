@@ -1,19 +1,40 @@
-[gd_scene load_steps=5 format=3 uid="uid://desrmcn8loloj"]
+[gd_scene format=3 uid="uid://desrmcn8loloj"]
 
 [ext_resource type="Texture2D" uid="uid://codaryfupfqei" path="res://art/ui/clipboard.png" id="1_byv16"]
 [ext_resource type="Script" uid="uid://cpohjjnsor87x" path="res://scripts/ui/clipboard.gd" id="2_clipbd"]
 [ext_resource type="FontFile" uid="uid://bfimb4kdwnqc7" path="res://fonts/nintendo-nes-font.ttf" id="2_mje68"]
 [ext_resource type="FontFile" uid="uid://dl2gw4blk118s" path="res://fonts/tiny-mono-pixel-font.ttf" id="3_clipbd"]
+[ext_resource type="Texture2D" uid="uid://bp4com0ui573q" path="res://art/ui/bonuscheck.png" id="4_leevr"]
 
-[node name="Clipboard" type="Node2D"]
+[node name="Clipboard" type="Node2D" unique_id=1015586933]
+texture_filter = 1
 script = ExtResource("2_clipbd")
 header_font = ExtResource("2_mje68")
 header_font_size = 8
 value_font = ExtResource("2_mje68")
 value_font_size = 8
+value_alignment = 2
+stage_header_position = Vector2(108, 40)
+level_header_position = Vector2(108, 64)
+virus_header_position = Vector2(108, 88)
+coin_header_position = Vector2(108, 112)
+speed_header_position = Vector2(108, 136)
+bonus_header_position = Vector2(108, 160)
+stage_value_position = Vector2(108, 48)
+level_value_position = Vector2(108, 70)
+virus_value_position = Vector2(108, 96)
+coin_value_position = Vector2(108, 120)
+speed_value_position = Vector2(108, 144)
 description_header_font = ExtResource("3_clipbd")
 description_value_font = ExtResource("3_clipbd")
+bonus_header_font = ExtResource("2_mje68")
+bonus_header_font_size = 8
+bonus_value_font = ExtResource("3_clipbd")
+bonus_value_line_spacing = 2
+bonus_status_texture = ExtResource("4_leevr")
+bonus_status_position = Vector2(176, 168)
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Clipboard" type="Sprite2D" parent="." unique_id=1061631278]
+position = Vector2(98, 0)
 texture = ExtResource("1_byv16")
 centered = false

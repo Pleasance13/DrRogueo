@@ -102,9 +102,8 @@ func use_item(
 	if items[index] == null:
 		return
 
-
 	var item := items[index]
-
+	BonusManager.notify(board, "item_used", {"item_id": item.id})
 
 	# ========================================================
 	# NEXT-PILL ITEM
