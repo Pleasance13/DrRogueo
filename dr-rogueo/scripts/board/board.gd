@@ -284,14 +284,14 @@ const LEVELS_PER_STAGE := 3
 # fight (Stage 4), and clearing it ends the run.
 const BOSS_LEVEL := 3 * LEVELS_PER_STAGE + 1
 
-const COINS_PER_VIRUS := 1
+const COINS_PER_VIRUS := 1.00
 
-var coins := 0
+var coins : float = 0.00
 
 # Coins earned so far during the CURRENT stage only. Reset to 0
 # each time a new stage starts. Used to apply the OD-gauge coin
 # multiplier when the stage ends (see _apply_stage_coin_multiplier).
-var stage_coins_earned := 0
+var stage_coins_earned : float = 0.00
 
 var store_controller: StoreController = null
 
@@ -1605,7 +1605,7 @@ func award_virus_coins(color: int = -1) -> void:
 
 	var multiplier := RunUpgrades.get_virus_coin_multiplier(color)
 
-	var amount := int(round(COINS_PER_VIRUS * multiplier))
+	var amount := COINS_PER_VIRUS * multiplier
 
 	coins += amount
 	stage_coins_earned += amount
@@ -1621,7 +1621,7 @@ func _apply_stage_coin_multiplier(leftover_halves: int) -> void:
 
 	var multiplier := OverdoseGauge.multiplier_for_zone(zone)
 
-	var target := int(round(stage_coins_earned * multiplier))
+	var target := stage_coins_earned * multiplier
 
 	coins += (target - stage_coins_earned)
 

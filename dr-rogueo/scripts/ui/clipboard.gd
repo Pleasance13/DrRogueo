@@ -1374,7 +1374,7 @@ func update_stats(
 	level_in_stage: int,
 	levels_per_stage: int,
 	virus_count: int,
-	coin_count: int,
+	coin_count: float,
 	speed_name: String
 ) -> void:
 
@@ -1396,7 +1396,7 @@ func update_stats(
 	virus_value_label.text = "%02d" % virus_count
 
 	coin_header_label.text = "COIN"
-	coin_value_label.text = "%02d" % coin_count
+	coin_value_label.text = "%0.2f" % coin_count
 
 	speed_header_label.text = "SPEED"
 	speed_value_label.text = "%s" % speed_name
@@ -1446,7 +1446,7 @@ func _set_bonus_status_frame(status: int) -> void:
 
 func update_store_stats(
 	next_stage: int,
-	coin_count: int
+	coin_count: float
 ) -> void:
 
 	if Engine.is_editor_hint():
@@ -1458,7 +1458,7 @@ func update_store_stats(
 	next_stage_value_label.text = "%d" % next_stage
 
 	store_coin_header_label.text = "COIN"
-	store_coin_value_label.text = "%02d" % coin_count
+	store_coin_value_label.text = "%0.2f" % coin_count
 
 
 # ============================================================

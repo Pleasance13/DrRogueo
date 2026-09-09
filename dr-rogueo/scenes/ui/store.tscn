@@ -195,19 +195,6 @@ description_header_position = Vector2(324, 52)
 description_value_font = ExtResource("3_c56s1")
 description_value_line_spacing = 2
 description_value_position = Vector2(326, 68)
-bonus_header_font_size = null
-bonus_header_color = null
-bonus_header_alignment = null
-bonus_challenge_header_position = null
-bonus_reward_header_position = null
-bonus_header_size = null
-bonus_value_font_size = null
-bonus_value_color = null
-bonus_value_alignment = null
-bonus_value_line_spacing = null
-bonus_challenge_value_position = null
-bonus_reward_value_position = null
-bonus_value_size = null
 description_scroll_end_pause = 3.0
 
 [node name="ContinueButton" type="Sprite2D" parent="." unique_id=83250160]

@@ -120,9 +120,10 @@ shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 thwomp_sprite_texture = ExtResource("28_tel4y")
 store_scene = ExtResource("22_y6deb")
-debug_enabled = true
 debug_level_in_stage = 2
-debug_item_slot_1 = "TETHER PILL"
+debug_item_slot_1 = "THWOMP"
+debug_item_slot_2 = "THWOMP"
+debug_item_slot_3 = "THWOMP"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 

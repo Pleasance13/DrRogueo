@@ -523,9 +523,9 @@ func _get_property_list() -> Array[Dictionary]:
 
 	properties.append({
 		"name": "debug_coins",
-		"type": TYPE_INT,
+		"type": TYPE_FLOAT,
 		"hint": PROPERTY_HINT_RANGE,
-		"hint_string": "0,9999,1",
+		"hint_string": "0,9999,0.01",
 		"usage": debug_value_usage
 	})
 
@@ -605,9 +605,9 @@ func _get_property_list() -> Array[Dictionary]:
 
 	properties.append({
 		"name": "debug_next_stage",
-		"type": TYPE_INT,
+		"type": TYPE_FLOAT,
 		"hint": PROPERTY_HINT_RANGE,
-		"hint_string": "1,999,1",
+		"hint_string": "1,999,0.01",
 		"usage": debug_value_usage
 	})
 
@@ -1580,7 +1580,7 @@ func setup(game_board: DrRogueoBoard) -> void:
 # COIN ACCESS
 # ============================================================
 
-func get_coins() -> int:
+func get_coins() -> float:
 
 	if board != null:
 		return board.coins
@@ -1591,7 +1591,7 @@ func get_coins() -> int:
 	return 0
 
 
-func set_coins(value: int) -> void:
+func set_coins(value: float) -> void:
 
 	if board != null:
 
@@ -3314,9 +3314,7 @@ func _update_coin_display() -> void:
 
 	if label:
 
-		label.text = str(
-			get_coins()
-		)
+		label.text = "%.2f" % get_coins()
 
 	_update_clipboard_display()
 
