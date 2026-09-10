@@ -1,14 +1,14 @@
 class_name BonusPongCombo
 extends BonusChallenge
 
-const REQUIRED_COMBO := 15
+const REQUIRED_COMBO := 10
 
 
 func _init() -> void:
 	id = "pong_combo_15"
 	display_name = "BONUS CHALLENGE"
-	description = "Reach a combo of %d+ with PONG." % REQUIRED_COMBO
-	reward_description = "PONG upgrade: 2x damage to boss viruses."
+	description = "REACH A COMBO OF %d+ WITH PONG." % REQUIRED_COMBO
+	reward_description = "PONG UPGRADE: 2x DAMAGE TO BOSS VIRUSES."
 
 
 func can_appear(_board: DrRogueoBoard) -> bool:
@@ -26,7 +26,7 @@ func on_event(_board: DrRogueoBoard, event_name: String, data: Dictionary) -> vo
 
 		return
 
-	if event_name == "level_cleared" and status == Status.ACTIVE:
+	if event_name == "stage_cleared" and status == Status.ACTIVE:
 		status = Status.FAILED
 
 

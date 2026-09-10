@@ -5,9 +5,9 @@ extends Resource
 # BONUS CHALLENGE (base class)
 # ============================================================
 #
-# Rolled once per level by BonusManager. Not accepted/declined -
+# Rolled once per stage by BonusManager. Not accepted/declined -
 # it's just active until it resolves. Subclasses override
-# can_appear(), on_level_start(), and on_event().
+# can_appear(), on_stage_start(), and on_event().
 #
 # ============================================================
 
@@ -27,14 +27,14 @@ var status: int = Status.INACTIVE
 
 
 # Whether this challenge is even eligible to be rolled this
-# level, given current board/inventory state.
+# stage, given current board/inventory state.
 func can_appear(board: DrRogueoBoard) -> bool:
 	return true
 
 
-# Called once when the challenge is chosen for a level. Reset
+# Called once when the challenge is chosen for a stage. Reset
 # any internal tracking here.
-func on_level_start(board: DrRogueoBoard) -> void:
+func on_stage_start(board: DrRogueoBoard) -> void:
 	status = Status.ACTIVE
 
 

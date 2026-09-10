@@ -5,11 +5,11 @@ extends Node
 # ============================================================
 #
 # Owns the single active bonus challenge. Board calls
-# start_level() at the top of every level (including level 1)
-# and notify() at each relevant gameplay event. Challenges are
-# never stacked - one per level, replaced fresh each level even
-# if the previous one is still "active" (challenges are scoped
-# to a single level unless a subclass says otherwise).
+# start_stage() once at the top of every STAGE (including the
+# very first one) and notify() at each relevant gameplay event.
+# Challenges now span the full stage (all levels in it) rather
+# than a single level -- they're only replaced when a new stage
+# begins, not on every level transition within a stage.
 # ============================================================
 
 signal challenge_changed(challenge: BonusChallenge)
@@ -18,7 +18,7 @@ signal challenge_resolved(challenge: BonusChallenge)
 var current_challenge: BonusChallenge = null
 
 
-func start_level(board: DrRogueoBoard) -> void:
+func start_stage(board: DrRogueoBoard) -> void:
 
 	var candidates: Array[BonusChallenge] = []
 
@@ -37,7 +37,7 @@ func start_level(board: DrRogueoBoard) -> void:
 		randi_range(0, candidates.size() - 1)
 	]
 
-	current_challenge.on_level_start(board)
+	current_challenge.on_stage_start(board)
 
 	challenge_changed.emit(current_challenge)
 

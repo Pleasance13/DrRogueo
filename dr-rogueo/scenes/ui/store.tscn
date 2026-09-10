@@ -5,6 +5,7 @@
 [ext_resource type="Resource" uid="uid://c5byrn3mbcid6" path="res://art/palettes/background_default.tres" id="3_2bj56"]
 [ext_resource type="FontFile" uid="uid://dl2gw4blk118s" path="res://fonts/tiny-mono-pixel-font.ttf" id="3_c56s1"]
 [ext_resource type="Resource" uid="uid://kvbdq5gvgdvf" path="res://art/palettes/background_preset1.tres" id="4_hcjtv"]
+[ext_resource type="Texture2D" uid="uid://bg57x2ylt6tos" path="res://art/ui/free.png" id="4_pmoh7"]
 [ext_resource type="Resource" uid="uid://cg28m1xjs432c" path="res://art/palettes/background_preset2.tres" id="5_ef4ni"]
 [ext_resource type="Resource" uid="uid://kkk6xhdvhxb4" path="res://art/palettes/background_preset3.tres" id="6_h3bup"]
 [ext_resource type="Resource" uid="uid://cktel5ohlh46k" path="res://art/palettes/background_preset4.tres" id="7_2umx5"]
@@ -47,6 +48,13 @@ restock_price_color = Color(0.239216, 0.109804, 0, 1)
 restock_price_position = Vector2(2, 16)
 restock_price_alignment = 2
 coin_texture = ExtResource("23_8lq3c")
+free_label_font = ExtResource("3_c56s1")
+free_label_font_size = 6
+free_label_color = Color(0.33333334, 0.7921569, 0.2784314, 1)
+free_label_position = Vector2(22, 18)
+free_label_alignment = 1
+free_icon_texture = ExtResource("4_pmoh7")
+free_icon_position = Vector2(35, 4)
 price_font = ExtResource("25_c56s1")
 price_font_size = 8
 price_position = Vector2(31, 16)

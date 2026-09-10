@@ -506,7 +506,7 @@ func _ready() -> void:
 	if level == 1:
 		RunUpgrades.reset()
 
-	BonusManager.start_level(self)
+	BonusManager.start_stage(self)
 
 
 # ============================================================
@@ -1463,6 +1463,20 @@ func advance_to_next_level() -> void:
 
 
 	# ========================================================
+	# STAGE-SPAN BONUS CHALLENGE RESOLUTION
+	# ========================================================
+	#
+	# Bonus challenges now span the whole stage, so this only
+	# fires once, right when the LAST level of the stage
+	# finishes -- not on every individual level clear.
+	# ========================================================
+
+	if completed_stage:
+
+		BonusManager.notify(self, "stage_cleared", {})
+
+
+	# ========================================================
 	# NEXT LEVEL
 	# ========================================================
 
@@ -1530,7 +1544,9 @@ func advance_to_next_level() -> void:
 	# ended, since the store already handles that hand-off).
 	# ========================================================
 
-	BonusManager.start_level(self)
+	if is_stage_start(level):
+
+		BonusManager.start_stage(self)
 
 	_show_level_transition_label(
 		get_stage(),

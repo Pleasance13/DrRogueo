@@ -16,8 +16,8 @@ func _init(color: PillHalf.PillColor = PillHalf.PillColor.RED) -> void:
 
 	id = "clear_first_%s" % color_name.to_lower()
 	display_name = "BONUS CHALLENGE"
-	description = "Clear all %s viruses first." % color_name
-	reward_description = "2x coin rewards for clearing %s viruses." % color_name
+	description = "CLEAR ALL %s VIRUSES FIRST IN EACH LEVEL THIS STAGE." % color_name
+	reward_description = "2x COIN REWARDS FOR CLEARING %s VIRUSES." % color_name
 
 
 # ============================================================
@@ -51,7 +51,7 @@ func can_appear(board: DrRogueoBoard) -> bool:
 	return false
 
 
-func on_level_start(board: DrRogueoBoard) -> void:
+func on_stage_start(board: DrRogueoBoard) -> void:
 	status = Status.ACTIVE
 
 
@@ -61,11 +61,21 @@ func on_level_start(board: DrRogueoBoard) -> void:
 #
 # Fails IMMEDIATELY the instant a non-target-color virus clears
 # while a target-color virus still remains -- does not wait
-# for level_cleared, since the player may keep playing the
-# level long after the challenge is already unwinnable.
+# for stage_cleared, since the player may keep playing long
+# after the challenge is already unwinnable.
 # ============================================================
 
 func on_event(board: DrRogueoBoard, event_name: String, data: Dictionary) -> void:
+
+	# The challenge now spans the whole stage. It only ever
+	# PASSES once the entire stage clears without a failure
+	# having happened in any of its levels -- stays ACTIVE
+	# (shown as PENDING) through every level in between.
+	if event_name == "stage_cleared":
+
+		status = Status.PASSED
+
+		return
 
 	if event_name != "virus_cleared":
 		return
@@ -73,17 +83,13 @@ func on_event(board: DrRogueoBoard, event_name: String, data: Dictionary) -> voi
 	var color: int = data.get("color", -1)
 
 	if color == target_color:
-
-		if _target_color_all_cleared(board):
-
-			status = Status.PASSED
-
 		return
 
-	# A different-colored virus just cleared. Only a failure if
-	# the target color hasn't already been fully cleared (if it
-	# has, this challenge already passed above and won't be
-	# ACTIVE anymore, so this branch won't even run).
+	# A different-colored virus just cleared in the CURRENT
+	# level. Still a per-level check -- virus_cells reflects
+	# only the level in progress -- but a failure here now
+	# fails the whole stage's challenge, since status is no
+	# longer reset until the next stage begins.
 	if _target_color_remaining(board):
 
 		status = Status.FAILED

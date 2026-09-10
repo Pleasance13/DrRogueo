@@ -90,6 +90,7 @@ description_value_line_spacing = 2
 description_value_position = Vector2(108, 50)
 bonus_header_font_size = 6
 bonus_value_line_spacing = 0
+bonus_reward_gap = null
 
 [node name="PauseBonusClipboard" parent="." unique_id=1015586933 instance=ExtResource("5_trceg")]
 process_mode = 3
@@ -105,6 +106,7 @@ bonus_challenge_header_position = Vector2(108, 32)
 bonus_reward_header_position = Vector2(108, 72)
 bonus_challenge_value_position = Vector2(108, 42)
 bonus_reward_value_position = Vector2(108, 82)
+bonus_reward_gap = null
 
 [node name="Pill-preview" parent="." unique_id=1302045771 instance=ExtResource("6_eb6dy")]
 
@@ -120,10 +122,9 @@ shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 thwomp_sprite_texture = ExtResource("28_tel4y")
 store_scene = ExtResource("22_y6deb")
-debug_level_in_stage = 2
-debug_item_slot_1 = "THWOMP"
-debug_item_slot_2 = "THWOMP"
-debug_item_slot_3 = "THWOMP"
+debug_enabled = true
+debug_level_in_stage = 3
+debug_item_slot_1 = "TETHER PILL"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 

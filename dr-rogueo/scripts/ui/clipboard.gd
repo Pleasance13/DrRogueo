@@ -428,6 +428,12 @@ var bonus_value_line_spacing := 0:
 		bonus_reward_value_position = value
 		_queue_style_refresh()
 
+@export_range(0.0, 32.0, 1.0)
+var bonus_reward_gap := 8.0:
+	set(value):
+		bonus_reward_gap = value
+		_queue_style_refresh()
+
 @export var bonus_value_size := Vector2(76, 26):
 	set(value):
 		bonus_value_size = value
@@ -1114,6 +1120,52 @@ func _style_bonus_challenge_label() -> void:
 	)
 
 
+func _reposition_bonus_reward() -> void:
+
+	if bonus_challenge_value_label == null:
+		return
+	if bonus_reward_header_label == null:
+		return
+	if bonus_reward_value_label == null:
+		return
+
+	bonus_challenge_value_label.custom_minimum_size = Vector2(
+		bonus_value_size.x,
+		0
+	)
+
+	var wrapped_height: float = (
+		bonus_challenge_value_label.get_minimum_size().y
+	)
+
+	bonus_challenge_value_label.size = Vector2(
+		bonus_value_size.x,
+		wrapped_height
+	)
+
+	var header_to_value_gap: float = (
+		bonus_reward_value_position.y
+		- bonus_reward_header_position.y
+	)
+
+	var reward_header_y: float = (
+		bonus_challenge_value_position.y
+		+ wrapped_height
+		+ bonus_reward_gap
+	)
+
+	bonus_reward_header_label.position = _pixel_vector(
+		Vector2(bonus_reward_header_position.x, reward_header_y)
+	)
+
+	bonus_reward_value_label.position = _pixel_vector(
+		Vector2(
+			bonus_reward_value_position.x,
+			reward_header_y + header_to_value_gap
+		)
+	)
+
+
 func _style_bonus_status_sprite() -> void:
 
 	if bonus_status_sprite == null:
@@ -1543,6 +1595,8 @@ func show_bonus_challenge(
 	bonus_challenge_value_label.visible = true
 	bonus_reward_header_label.visible = true
 	bonus_reward_value_label.visible = true
+
+	_reposition_bonus_reward()
 
 
 func hide_bonus_challenge() -> void:

@@ -160,6 +160,56 @@ var coin_animation_fps := 8.0:
 
 
 # ============================================================
+# FREE ITEM LABEL / ICON (bonus-challenge reward slot)
+# ============================================================
+
+@export_group("Free Item Label")
+
+@export var free_label_font: Font:
+	set(value):
+		free_label_font = value
+		_queue_editor_preview_update()
+
+@export_range(1, 32, 1)
+var free_label_font_size := 7:
+	set(value):
+		free_label_font_size = value
+		_queue_editor_preview_update()
+
+@export var free_label_color := Color.WHITE:
+	set(value):
+		free_label_color = value
+		_queue_editor_preview_update()
+
+@export var free_label_position := Vector2(39, 0):
+	set(value):
+		free_label_position = value
+		_queue_editor_preview_update()
+
+@export var free_label_size := Vector2(12, 10):
+	set(value):
+		free_label_size = value
+		_queue_editor_preview_update()
+
+@export var free_label_alignment := HORIZONTAL_ALIGNMENT_RIGHT:
+	set(value):
+		free_label_alignment = value
+		_queue_editor_preview_update()
+
+@export_group("Free Item Icon")
+
+@export var free_icon_texture: Texture2D:
+	set(value):
+		free_icon_texture = value
+		_queue_editor_preview_update()
+
+@export var free_icon_position := Vector2(39, 9):
+	set(value):
+		free_icon_position = value
+		_queue_editor_preview_update()
+
+
+# ============================================================
 # ITEM PRICE
 # ============================================================
 
@@ -2063,7 +2113,35 @@ func _add_item_visuals(
 
 		created_nodes.append(icon)
 
-	if coin_texture:
+	var effective_cost := get_effective_item_cost(slot_index, item)
+
+	var is_free_slot: bool = (
+		effective_cost <= 0
+	)
+
+	# --------------------------------------------------------
+	# COIN / FREE ICON
+	# --------------------------------------------------------
+
+	if is_free_slot and free_icon_texture != null:
+
+		var free_icon := Sprite2D.new()
+
+		free_icon.name = prefix + "Coin"
+
+		free_icon.texture = free_icon_texture
+
+		free_icon.centered = false
+
+		free_icon.position = _pixel_vector(
+			free_icon_position
+		)
+
+		slot.add_child(free_icon)
+
+		created_nodes.append(free_icon)
+
+	elif coin_texture:
 
 		var coin := _create_coin_animation()
 
@@ -2077,23 +2155,39 @@ func _add_item_visuals(
 
 		created_nodes.append(coin)
 
+	# --------------------------------------------------------
+	# PRICE LABEL
+	# --------------------------------------------------------
+
 	var price_label := Label.new()
 
 	price_label.name = prefix + "Price"
 
-	var effective_cost := get_effective_item_cost(slot_index, item)
-
 	price_label.text = "FREE" if effective_cost <= 0 else "%02d" % effective_cost
 
-	_apply_label_settings(
-		price_label,
-		price_position,
-		price_size,
-		price_alignment,
-		price_font_size,
-		price_color,
-		price_font
-	)
+	if is_free_slot:
+
+		_apply_label_settings(
+			price_label,
+			free_label_position,
+			free_label_size,
+			free_label_alignment,
+			free_label_font_size,
+			free_label_color,
+			free_label_font
+		)
+
+	else:
+
+		_apply_label_settings(
+			price_label,
+			price_position,
+			price_size,
+			price_alignment,
+			price_font_size,
+			price_color,
+			price_font
+		)
 
 	slot.add_child(price_label)
 

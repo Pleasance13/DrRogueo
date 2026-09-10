@@ -5,8 +5,8 @@ extends BonusChallenge
 func _init() -> void:
 	id = "no_items"
 	display_name = "BONUS CHALLENGE"
-	description = "Don't use any items."
-	reward_description = "Free EPIC item next store visit."
+	description = "DON'T USE ANY ITEMS THIS STAGE."
+	reward_description = "FREE EPIC TIER ITEM ON NEXT STORE VISIT."
 
 
 func can_appear(_board: DrRogueoBoard) -> bool:
@@ -19,7 +19,7 @@ func can_appear(_board: DrRogueoBoard) -> bool:
 	return false
 
 
-func on_level_start(board: DrRogueoBoard) -> void:
+func on_stage_start(board: DrRogueoBoard) -> void:
 	status = Status.ACTIVE
 
 
@@ -29,7 +29,7 @@ func on_event(_board: DrRogueoBoard, event_name: String, _data: Dictionary) -> v
 		status = Status.FAILED
 		return
 
-	if event_name == "level_cleared":
+	if event_name == "stage_cleared":
 		status = Status.PASSED
 
 
