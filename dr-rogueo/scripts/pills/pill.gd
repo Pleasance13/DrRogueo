@@ -148,7 +148,10 @@ var shift_cell_2_offset := Vector2.ZERO
 
 @export_group("Ghost")
 
-@export var is_ghost_pill := false
+@export var is_ghost_pill := false:
+	set(value):
+		is_ghost_pill = value
+		_update_pill()
 
 @export var ghost_sprite_texture: Texture2D:
 	set(value):
@@ -158,6 +161,8 @@ var shift_cell_2_offset := Vector2.ZERO
 var is_ghosting := false:
 	set(value):
 		is_ghosting = value
+		if value:
+			_ghost_flash_step = 0
 		_update_pill()
 
 
@@ -185,6 +190,12 @@ const GHOST_VERTICAL_FRAME_1 := Rect2(8, 0, 8, 16)
 
 const GHOST_HORIZONTAL_FRAME_0 := Rect2(0, 16, 16, 8)
 const GHOST_HORIZONTAL_FRAME_1 := Rect2(0, 24, 16, 8)
+
+const GHOST_OUTLINE_VERTICAL_FRAME_0 := Rect2(16, 0, 8, 16)
+const GHOST_OUTLINE_VERTICAL_FRAME_1 := Rect2(24, 0, 8, 16)
+
+const GHOST_OUTLINE_HORIZONTAL_FRAME_0 := Rect2(16, 16, 16, 8)
+const GHOST_OUTLINE_HORIZONTAL_FRAME_1 := Rect2(16, 24, 16, 8)
 
 
 # ============================================================
@@ -253,7 +264,8 @@ const SHIFT_VANISH_HORIZONTAL := Rect2(0, 32, 16, 8)
 
 var tether_sprite: Node2D
 
-
+var ghost_outline_sprite: Sprite2D
+var _ghost_flash_step := 0
 
 # ============================================================
 # READY
@@ -262,6 +274,7 @@ var tether_sprite: Node2D
 func _ready() -> void:
 
 	_ensure_tether_sprite()
+	_ensure_ghost_outline_sprite()
 
 	if not Engine.is_editor_hint():
 
@@ -282,6 +295,10 @@ func _ready() -> void:
 
 func _on_anim_frame_changed(_frame: int) -> void:
 
+	if is_ghosting:
+
+		_ghost_flash_step = (_ghost_flash_step + 1) % 4
+
 	if is_ghosting or is_ghost_pill:
 
 		_update_pill()
@@ -301,6 +318,72 @@ func _ensure_tether_sprite() -> void:
 	tether_sprite.name = "TetherSprite"
 
 	add_child(tether_sprite)
+
+
+func _ensure_ghost_outline_sprite() -> void:
+
+	if ghost_outline_sprite != null:
+		return
+
+	ghost_outline_sprite = Sprite2D.new()
+
+	ghost_outline_sprite.name = "GhostOutlineSprite"
+	ghost_outline_sprite.centered = false
+	ghost_outline_sprite.region_enabled = true
+	ghost_outline_sprite.visible = false
+
+	add_child(ghost_outline_sprite)
+
+
+func _ghosting_shows_ghost_sprite() -> bool:
+
+	return _ghost_flash_step == 0 or _ghost_flash_step == 2
+
+
+func _ghosting_current_ghost_frame() -> int:
+
+	return 0 if _ghost_flash_step == 0 else 1
+
+
+func _update_ghost_outline_visual() -> void:
+
+	if ghost_outline_sprite == null:
+		return
+
+	if ghost_sprite_texture == null:
+		return
+
+	ghost_outline_sprite.texture = ghost_sprite_texture
+
+	var horizontal := (
+		orientation == Orientation.RIGHT
+		or orientation == Orientation.LEFT
+	)
+
+	var frame := 0
+
+	if not Engine.is_editor_hint():
+		frame = AnimClock.frame
+
+	if horizontal:
+
+		ghost_outline_sprite.region_rect = (
+			GHOST_OUTLINE_HORIZONTAL_FRAME_1
+			if frame == 1
+			else GHOST_OUTLINE_HORIZONTAL_FRAME_0
+		)
+
+		ghost_outline_sprite.position = Vector2(0, 0)
+
+	else:
+
+		ghost_outline_sprite.region_rect = (
+			GHOST_OUTLINE_VERTICAL_FRAME_1
+			if frame == 1
+			else GHOST_OUTLINE_VERTICAL_FRAME_0
+		)
+
+		ghost_outline_sprite.position = Vector2(0, -CELL_SIZE)
 
 
 # ============================================================
@@ -345,6 +428,8 @@ func _update_pill() -> void:
 
 		tether_sprite.visible = true
 
+		if ghost_outline_sprite != null: ghost_outline_sprite.visible = false
+
 		queue_redraw()
 
 		return
@@ -370,32 +455,35 @@ func _update_pill() -> void:
 
 
 	# ========================================================
-	# GHOST VISUAL
+	# GHOST VISUAL -- ACTIVELY GHOSTING (flash: ghost/normal)
 	# ========================================================
 
-	var show_ghost_look := is_ghosting
+	if is_ghosting:
 
-	if is_ghost_pill and not is_ghosting:
-		var frame := 0 if Engine.is_editor_hint() else AnimClock.frame
-		show_ghost_look = (frame == 1)
+		if ghost_outline_sprite != null:
+			ghost_outline_sprite.visible = false
 
-	if show_ghost_look:
+		if _ghosting_shows_ghost_sprite():
 
-		if half_1 != null:
-			half_1.visible = false
+			if half_1 != null:
+				half_1.visible = false
 
-		if half_2 != null:
-			half_2.visible = false
+			if half_2 != null:
+				half_2.visible = false
 
-		tether_sprite.visible = false
+			tether_sprite.visible = false
 
-		queue_redraw()
+			queue_redraw()
 
-		return
+			return
+
+		# else: fall through to NORMAL PILL VISUAL below --
+		# this is the "normal" beat of the flash cycle.
 
 
 	# ========================================================
-	# NORMAL PILL VISUAL
+	# NORMAL PILL VISUAL (also covers: ghosting's "normal"
+	# flash beat, and SOLID ghost-armed pill w/ outline overlay)
 	# ========================================================
 
 	tether_sprite.visible = false
@@ -507,6 +595,26 @@ func _update_pill() -> void:
 
 			half_2.pill_state = PillHalf.PillState.VANISHING
 
+	# ========================================================
+	# GHOST OUTLINE OVERLAY
+	# ========================================================
+
+	var show_outline := is_ghost_pill and not is_ghosting
+
+	if show_outline and ghost_outline_sprite != null:
+
+		_update_ghost_outline_visual()
+
+		ghost_outline_sprite.visible = true
+
+		move_child(ghost_outline_sprite, get_child_count() - 1)
+
+	elif ghost_outline_sprite != null:
+
+		ghost_outline_sprite.visible = false
+
+	queue_redraw()
+
 
 # ============================================================
 # WRAP LAYOUT RESET
@@ -565,14 +673,7 @@ func _draw() -> void:
 
 		return
 
-	var show_ghost_look := is_ghosting
-
-	if is_ghost_pill and not is_ghosting:
-
-		var frame := 0 if Engine.is_editor_hint() else AnimClock.frame
-		show_ghost_look = (frame == 1)
-
-	if show_ghost_look:
+	if is_ghosting and _ghosting_shows_ghost_sprite():
 
 		_draw_ghost()
 
@@ -591,11 +692,7 @@ func _draw_ghost() -> void:
 	)
 
 
-	var frame := 0
-
-	if not Engine.is_editor_hint():
-
-		frame = AnimClock.frame
+	var frame := _ghosting_current_ghost_frame()
 
 
 	var region: Rect2

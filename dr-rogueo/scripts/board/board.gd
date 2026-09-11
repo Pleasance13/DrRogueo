@@ -62,6 +62,13 @@ var level: int = 1
 
 @export var thwomp_sprite_texture: Texture2D
 
+# Boss damage dealt by the currently-armed Pong / Thwomp item.
+# Set by ItemPong.use() / ItemThwomp.use() from the item's own
+# (upgradable) boss_damage value; defaults here just match each
+# item's base value as a safety fallback.
+var pong_boss_damage: int = 1
+var thwomp_boss_damage: int = 2
+
 
 # ============================================================
 # SHIFT
@@ -4392,6 +4399,8 @@ func _resolve_matches_and_gravity() -> bool:
 
 		var tetris_rows := _find_full_rows_for_tetris_trait()
 
+		await _check_boss_tetris_indicator_hit(tetris_rows)
+
 
 		if matches.is_empty() and tetris_rows.is_empty():
 			if _no_more_enemies():
@@ -4543,6 +4552,48 @@ func _resolve_matches_and_gravity() -> bool:
 	# Godot requires an explicit return because this function
 	# is typed as -> bool.
 	return false
+
+
+# ============================================================
+# TETRIS TRAIT -- BOSS INDICATOR ROW MISFILL
+# ============================================================
+#
+# If the Tetris trait clears one of the boss's two indicator
+# rows as a full row, that can ONLY happen here with at least
+# one wrong-colored indicator cell -- a correctly-filled set of
+# indicators is always consumed by boss_controller.check_indicators()
+# earlier in this same loop (with a `continue`), before this
+# function is ever reached. So no separate "was it wrong colors"
+# check is needed; row overlap alone is sufficient.
+# ============================================================
+
+func _check_boss_tetris_indicator_hit(
+	tetris_rows: Array[Vector2i]
+) -> void:
+
+	if boss_controller == null:
+		return
+
+	if boss_controller.defeated:
+		return
+
+	var indicator_rows := {
+		BOARD_HEIGHT - 2: true,
+		BOARD_HEIGHT - 1: true
+	}
+
+	var rows_hit: Dictionary = {}
+
+	for cell in tetris_rows:
+
+		if indicator_rows.has(cell.y):
+
+			rows_hit[cell.y] = true
+
+	if rows_hit.size() < indicator_rows.size():
+		return
+
+	await boss_controller.take_direct_damage(1)
 
 
 # ============================================================
@@ -4975,6 +5026,28 @@ func pong_break_cell(
 
 	if transitioning_level:
 		return false
+
+
+	if boss_blocked_cells.has(cell):
+
+		if boss_controller == null:
+			return false
+
+		if boss_controller.defeated:
+			return false
+
+		if boss_controller.busy:
+			return false
+
+		var damage: int = int(round(
+			pong_boss_damage * RunUpgrades.pong_boss_damage_multiplier
+		))
+
+		boss_controller.take_direct_damage(damage)
+
+		_start_pong_break_resolution()
+
+		return true
 
 
 	if occupied_cells.has(cell):
@@ -5837,7 +5910,8 @@ func apply_gravity(direction: Vector2i = Vector2i(0, 1)) -> void:
 
 
 		await get_tree().create_timer(
-			get_gravity_interval()
+			get_gravity_interval(),
+			false
 		).timeout
 
 		elapsed_time += get_gravity_interval()

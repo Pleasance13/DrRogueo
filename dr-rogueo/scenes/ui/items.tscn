@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://deqfbiljrxayr"]
+[gd_scene format=3 uid="uid://deqfbiljrxayr"]
 
 [ext_resource type="Texture2D" uid="uid://4jtmxh68shp3" path="res://art/ui/trait-boxes.png" id="1_0rtce"]
 [ext_resource type="Script" uid="uid://bt38qk002jsch" path="res://scripts/items/items.gd" id="1_8dj6o"]
@@ -12,74 +12,81 @@
 shader = ExtResource("6_l5n42")
 shader_parameter/progress = 1.0
 
-[node name="Items" type="Node2D"]
+[node name="Items" type="Node2D" unique_id=1596786925]
 texture_filter = 1
 script = ExtResource("1_8dj6o")
 
-[node name="TraitSlots" type="Sprite2D" parent="."]
+[node name="TraitSlots" type="Sprite2D" parent="." unique_id=1614275873]
 position = Vector2(290, 34)
 texture = ExtResource("1_0rtce")
 centered = false
 
-[node name="Trait-Slot-1" type="Node2D" parent="TraitSlots"]
+[node name="Trait-Slot-1" type="Node2D" parent="TraitSlots" unique_id=628446331]
 
-[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-1"]
+[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-1" unique_id=1322415800]
 position = Vector2(2, 2)
 
-[node name="Trait-Slot-2" type="Node2D" parent="TraitSlots"]
+[node name="Trait-Slot-2" type="Node2D" parent="TraitSlots" unique_id=502928936]
 
-[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-2"]
+[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-2" unique_id=388244187]
 position = Vector2(2, 20)
 
-[node name="Trait-Slot-3" type="Node2D" parent="TraitSlots"]
+[node name="Trait-Slot-3" type="Node2D" parent="TraitSlots" unique_id=1146461175]
 
-[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-3"]
+[node name="TraitIcon" type="Sprite2D" parent="TraitSlots/Trait-Slot-3" unique_id=890476098]
 position = Vector2(2, 38)
 
-[node name="Item-Slots" type="Node2D" parent="."]
-position = Vector2(239, 105)
+[node name="Item-Slots" type="Node2D" parent="." unique_id=156615486]
+position = Vector2(240, 107)
 
-[node name="Item-Slot-X" type="Sprite2D" parent="Item-Slots"]
+[node name="Item-Slot-X" type="Sprite2D" parent="Item-Slots" unique_id=1708837598]
+position = Vector2(-14, -16)
 texture = ExtResource("1_r7q86")
+centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 28, 28)
 
-[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-X"]
-position = Vector2(-2, -2)
+[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-X" unique_id=1094177635]
+position = Vector2(2, 4)
+centered = false
 
-[node name="Item-Slot-Y" type="Sprite2D" parent="Item-Slots"]
-position = Vector2(28, 0)
+[node name="Item-Slot-Y" type="Sprite2D" parent="Item-Slots" unique_id=655224840]
+position = Vector2(14, -16)
 texture = ExtResource("1_r7q86")
+centered = false
 region_enabled = true
 region_rect = Rect2(28, 0, 28, 28)
 
-[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-Y"]
-position = Vector2(-2, -2)
+[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-Y" unique_id=861088204]
+position = Vector2(2, 4)
+centered = false
 
-[node name="Item-Slot-B" type="Sprite2D" parent="Item-Slots"]
-position = Vector2(56, 0)
+[node name="Item-Slot-B" type="Sprite2D" parent="Item-Slots" unique_id=772423958]
+position = Vector2(42, -16)
 texture = ExtResource("1_r7q86")
+centered = false
 region_enabled = true
 region_rect = Rect2(56, 0, 28, 28)
 
-[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-B"]
-position = Vector2(-2, -2)
+[node name="ItemIcon" type="Sprite2D" parent="Item-Slots/Item-Slot-B" unique_id=1374536791]
+position = Vector2(2, 4)
+centered = false
 
-[node name="Item-Preview" type="Sprite2D" parent="."]
+[node name="Item-Preview" type="Sprite2D" parent="." unique_id=331893549]
 position = Vector2(228, 120)
 texture = ExtResource("1_chhin")
 centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 79, 79)
 
-[node name="Item-Use-Button" type="Sprite2D" parent="Item-Preview"]
+[node name="Item-Use-Button" type="Sprite2D" parent="Item-Preview" unique_id=2120268670]
 position = Vector2(63, 62)
 texture = ExtResource("4_q2f3j")
 centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 12, 11)
 
-[node name="Timer" type="Sprite2D" parent="."]
+[node name="Timer" type="Sprite2D" parent="." unique_id=143850784]
 visible = false
 material = SubResource("ShaderMaterial_f06em")
 position = Vector2(34, 146)

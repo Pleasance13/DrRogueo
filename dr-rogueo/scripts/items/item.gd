@@ -70,6 +70,12 @@ func get_shop_weight() -> float:
 
 @export var replaces_next_pill := false
 
+# Damage dealt to the boss when this item lands a hit (0 = item
+# never interacts with the boss). Lives here per-item so future
+# upgrades can bump it (e.g. RunUpgrades multiplier keyed by id)
+# without touching Board's logic.
+@export var boss_damage: int = 0
+
 func on_queue(board: DrRogueoBoard) -> void:
 	pass
 

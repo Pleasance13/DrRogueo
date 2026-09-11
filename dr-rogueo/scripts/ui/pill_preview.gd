@@ -242,6 +242,9 @@ func throw_pill(
 		if not is_instance_valid(pill):
 			return
 
+		if get_tree().paused:
+			continue
+
 		var delta := get_process_delta_time()
 
 		elapsed += delta
@@ -321,6 +324,9 @@ func throw_icon(
 
 		if not is_instance_valid(icon):
 			return
+
+		if get_tree().paused:
+			continue
 
 		elapsed += get_process_delta_time()
 

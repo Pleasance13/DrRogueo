@@ -6,14 +6,14 @@ extends Node2D
 # THWOMP (controller)
 # ============================================================
 #
-# thwomp.png: 24x72, three 24x24 frames stacked vertically --
+# thwomp_2cells.png: 16x60, three 16x20 frames stacked vertically --
 #   frame 0 (y=0)  -> default (hovering / falling / after settle)
-#   frame 1 (y=24) -> impact / hit-stop
-#   frame 2 (y=48) -> vanishing
+#   frame 1 (y=20) -> impact / hit-stop
+#   frame 2 (y=40) -> vanishing
 #
-# Each 24x24 frame is 3 columns x 3 rows of 8x8 cells. Drawing
-# is done manually (_draw(), not a plain Sprite2D) so each of
-# the 3 footprint COLUMNS can be sliced out and independently
+# Each 16x20 frame is 2 columns wide (8px cells). Drawing is
+# done manually (_draw(), not a plain Sprite2D) so each of the
+# FOOTPRINT footprint COLUMNS can be sliced out and independently
 # offset when the Pacman trait wraps one or more of them around
 # the board edge -- exactly the same technique Pill.gd uses for
 # the Shift Pill's wrap-split visual.
@@ -25,7 +25,7 @@ extends Node2D
 #
 # ============================================================
 
-const FOOTPRINT := 3
+const FOOTPRINT := 2
 
 const ROW_FALL_INTERVAL := 0.04
 const HIT_STOP_DURATION := 0.07
@@ -39,12 +39,18 @@ const IMPACT_SHAKE_DURATION := 0.4
 
 const HORIZONTAL_REPEAT_INTERVAL := 0.12
 
-const FRAME_SIZE := 24
+const FRAME_WIDTH := 16
+const FRAME_HEIGHT := 20
 const CELL_SIZE := 8
 
-const REGION_DEFAULT := Rect2(0, 0, FRAME_SIZE, FRAME_SIZE)
-const REGION_IMPACT := Rect2(0, FRAME_SIZE, FRAME_SIZE, FRAME_SIZE)
-const REGION_VANISH := Rect2(0, FRAME_SIZE * 2, FRAME_SIZE, FRAME_SIZE)
+const REGION_DEFAULT := Rect2(0, 0, FRAME_WIDTH, FRAME_HEIGHT)
+const REGION_IMPACT := Rect2(0, FRAME_HEIGHT, FRAME_WIDTH, FRAME_HEIGHT)
+const REGION_VANISH := Rect2(0, FRAME_HEIGHT * 2, FRAME_WIDTH, FRAME_HEIGHT)
+
+# The logical footprint is 16x16 (2x2 cells), but the sprite is
+# 16x20 -- 4 extra pixels of pure visual overhang. Splitting the
+# offset evenly puts 2px above and 2px below the logical box.
+const FRAME_VERTICAL_OFFSET := (FRAME_HEIGHT - CELL_SIZE * FOOTPRINT) / 2.0
 
 
 var board: DrRogueoBoard
@@ -239,11 +245,11 @@ func _draw() -> void:
 			current_frame_region.position.x + offset * CELL_SIZE,
 			current_frame_region.position.y,
 			CELL_SIZE,
-			FRAME_SIZE
+			FRAME_HEIGHT
 		)
 
 		var dest_position := (
-			Vector2(offset * CELL_SIZE, 0)
+			Vector2(offset * CELL_SIZE, -FRAME_VERTICAL_OFFSET)
 			+ _wrap_offset_for_column(offset)
 		)
 
@@ -251,7 +257,7 @@ func _draw() -> void:
 			thwomp_texture,
 			Rect2(
 				dest_position,
-				Vector2(CELL_SIZE, FRAME_SIZE)
+				Vector2(CELL_SIZE, FRAME_HEIGHT)
 			),
 			slice_region
 		)
@@ -388,7 +394,7 @@ func _check_boss_hit() -> void:
 	if board.boss_controller.defeated:
 		return
 
-	var hit := false
+	var overlapping_columns := 0
 
 	for real_col in _footprint_cols():
 
@@ -396,17 +402,20 @@ func _check_boss_hit() -> void:
 
 			if board.boss_blocked_cells.has(Vector2i(real_col, row)):
 
-				hit = true
+				overlapping_columns += 1
 
 				break
 
-		if hit:
-			break
-
-	if not hit:
+	if overlapping_columns <= 0:
 		return
 
-	await board.boss_controller.take_direct_damage(1)
+	var damage: int = int(round(
+		float(board.thwomp_boss_damage) * float(overlapping_columns) / float(FOOTPRINT)
+	))
+
+	damage = maxi(damage, 1)
+
+	await board.boss_controller.take_direct_damage(damage)
 
 
 # ============================================================

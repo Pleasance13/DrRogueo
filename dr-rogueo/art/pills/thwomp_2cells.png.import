@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cxu60lwfk4ckh"
-path="res://.godot/imported/ghost_pill.png-ca77d28358e4c679b57b4e0ec1f5c4aa.ctex"
+uid="uid://cfpi3wiqti4x6"
+path="res://.godot/imported/thwomp_2cells.png-ac80abeb365acf76515fdedc8dbf7de9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/pills/ghost_pill.png"
-dest_files=["res://.godot/imported/ghost_pill.png-ca77d28358e4c679b57b4e0ec1f5c4aa.ctex"]
+source_file="res://art/pills/thwomp_2cells.png"
+dest_files=["res://.godot/imported/thwomp_2cells.png-ac80abeb365acf76515fdedc8dbf7de9.ctex"]
 
 [params]
 

@@ -40,6 +40,8 @@ func _init() -> void:
 
 	replaces_next_pill = true
 
+	boss_damage = 2
+
 	if ResourceLoader.exists(THWOMP_ICON_PATH):
 
 		icon = load(THWOMP_ICON_PATH)
@@ -57,6 +59,8 @@ func use(board: DrRogueoBoard) -> bool:
 
 	if board.thwomp_controller != null:
 		return false
+
+	board.thwomp_boss_damage = boss_damage
 
 	board.start_thwomp_item()
 

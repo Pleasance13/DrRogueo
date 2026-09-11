@@ -6,7 +6,7 @@ extends Node2D
 signal defeated_changed(is_defeated: bool)
 
 
-const MAX_HEALTH := 8
+const MAX_HEALTH := 24
 const INDICATOR_TEXTURE_PATH := "res://art/board/boss_color_indicators.png"
 const BOSS_TEXTURE_PATH := "res://art/viruses/boss_1.png"
 const X_TEXTURE_PATH := "res://art/ui/x.png"
@@ -66,8 +66,8 @@ var _magnifier_boss: Sprite2D
 @export_range(0, 5, 1)
 var magnifier_boss_frame: int = 0
 
-@export_range(0, 8, 1)
-var magnifier_health: int = 8
+@export_range(0, 24, 1)
+var magnifier_health: int = 24
 
 
 var _editor_magnifier_root: Node2D
@@ -569,7 +569,7 @@ func _deal_damage() -> void:
 		DAMAGE_FLASH_DURATION
 	).timeout
 
-	health -= 1
+	health -= 3
 
 	if healthbar != null:
 		healthbar.set_health(health)
@@ -611,6 +611,16 @@ func take_direct_damage(amount: int = 1) -> void:
 
 	busy = true
 
+	if boss_sprite != null:
+
+		boss_sprite.frame = (
+			2 + boss_anim_frame
+		)
+
+	await board.get_tree().create_timer(
+		DAMAGE_FLASH_DURATION
+	).timeout
+
 	health -= amount
 
 	if healthbar != null:
@@ -621,6 +631,20 @@ func take_direct_damage(amount: int = 1) -> void:
 		await _play_death()
 
 		return
+
+	if boss_sprite != null:
+
+		boss_sprite.frame = boss_anim_frame
+
+	if _magnifier_boss != null:
+
+		_magnifier_boss.position = (
+			magnifier_boss_position
+		)
+
+		_magnifier_boss.frame = (
+			boss_anim_frame
+		)
 
 	busy = false
 
@@ -735,6 +759,7 @@ func _create_magnifier_display() -> void:
 	healthbar = Boss1Healthbar.new()
 
 	healthbar.name = "Boss1Healthbar"
+	healthbar.max_health = MAX_HEALTH
 	healthbar.position = (
 		magnifier_healthbar_position
 	)

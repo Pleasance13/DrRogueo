@@ -39,6 +39,8 @@ func _init() -> void:
 
 	replaces_next_pill = true
 
+	boss_damage = 1
+
 	icon = load(PONG_ICON_PATH)
 
 
@@ -46,6 +48,8 @@ func use(board: DrRogueoBoard) -> bool:
 
 	if board.pong_controller != null:
 		return false
+
+	board.pong_boss_damage = boss_damage
 
 	board.start_pong_item()
 
