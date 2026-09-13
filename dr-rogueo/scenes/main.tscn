@@ -150,7 +150,6 @@ shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 thwomp_sprite_texture = ExtResource("27_tel4y")
 store_scene = ExtResource("22_y6deb")
-debug_enabled = true
 debug_stage = 4
 debug_item_slot_1 = "THWOMP"
 debug_item_slot_2 = "THWOMP"
