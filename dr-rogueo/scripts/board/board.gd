@@ -4664,32 +4664,32 @@ func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
 
 	var result: Array[Vector2i] = []
 
-	if not has_tetris_trait():
-
-		return result
-
-
 	for row in range(BOARD_HEIGHT):
 
-		var row_full := true
+		var full := true
 
 		for col in range(BOARD_WIDTH):
 
-			if not is_cell_filled(Vector2i(col, row)):
+			var cell := Vector2i(col, row)
 
-				row_full = false
+			# Tetris only counts actual gameplay occupants:
+			# pill halves, viruses and tethers.
+			#
+			# boss_maze_cells are intentionally excluded.
+			if occupied_cells.has(cell):
+				continue
 
-				break
+			if virus_cells.has(cell):
+				continue
 
+			if tether_cells.has(cell):
+				continue
 
-		if not row_full:
-			continue
+			full = false
+			break
 
-
-		for col in range(BOARD_WIDTH):
-
-			result.append(Vector2i(col, row))
-
+		if full:
+			result.append(Vector2i(0, row))
 
 	return result
 

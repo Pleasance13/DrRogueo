@@ -1,21 +1,34 @@
 class_name Boss2Controller
 extends Node2D
 
+
 # ============================================================
 # BOSS 2 - BUBBLE MAZE
 # ============================================================
 #
-# Same board position/animation rig as Boss1Controller, but the
-# damage method is different: the whole board (minus the boss's
-# own 2x2 footprint) fills with impassible bubbles, with a
-# randomly-generated 1-2 cell wide corridor carved from directly
-# above the boss up to the pill spawn column. Landing a pill
-# directly on top of the boss deals HIT_DAMAGE and the maze
-# regenerates (harder as health drops).
+# The board is filled with solid bubbles, leaving a traversable
+# corridor from the pill spawn area down to the boss.
+#
+# The corridor is deliberately constructed from long straight
+# sections with 2x2 turning areas. This guarantees that a normal
+# two-half pill can rotate through every corner.
+#
+# Boss 2 rules:
+#
+# - Spawn area is permanently clear: 2x3.
+# - Boss area is permanently clear: 2x3.
+# - Minimum straightaway length is 3 cells.
+# - Bubbles are solid for normal board movement/gravity.
+# - Bubbles do NOT count as Tetris cells.
+# - Settled pill halves take 1 damage whenever a new pill spawns.
+# - Pill halves have their normal 3 HP, so they survive 3 hits.
+# - Maze regeneration never deletes settled pills.
 #
 # ============================================================
 
+
 signal defeated_changed(is_defeated: bool)
+
 
 const MAX_HEALTH := 24
 const HIT_DAMAGE := 3
@@ -32,6 +45,16 @@ const BUBBLE_FRAME_SIZE := 8
 
 const MAGNIFIER_GROUP := "boss_magnifier_slot"
 
+# Every straight section must contain at least this many cells.
+const MIN_STRAIGHTAWAY_LENGTH := 3
+
+# The board is 8 columns wide, so the permanent openings are
+# the middle two columns.
+const OPENING_LEFT := 3
+const OPENING_WIDTH := 2
+const OPENING_TOP_HEIGHT := 3
+const OPENING_BOTTOM_HEIGHT := 3
+
 
 var board: DrRogueoBoard
 
@@ -42,13 +65,22 @@ var busy := false
 var boss_col := 0
 var boss_row := 0
 
-# Vector2i -> true. The boss's own 2x2 body (never bubbled).
+# Vector2i -> true.
+# The boss's own 2x2 body.
 var footprint_cells: Dictionary = {}
 
 # Vector2i -> Sprite2D
 var bubble_cells: Dictionary = {}
-# Vector2i -> int (0 = frames 0/1 pair, 1 = frames 2/3 pair)
+
+# Vector2i -> int
+# 0 = animation frames 0/1
+# 1 = animation frames 2/3
 var bubble_pair_type: Dictionary = {}
+
+# Vector2i -> int
+# 0 = starts on first frame of its pair
+# 1 = starts on second frame of its pair
+var bubble_frame_offset: Dictionary = {}
 
 var boss_sprite: Sprite2D
 var boss_anim_frame := 0
@@ -57,6 +89,9 @@ var healthbar: Boss1Healthbar
 
 var _magnifier_root: Node2D
 var _magnifier_boss: Sprite2D
+
+# Used to detect the arrival of a new active pill.
+var _last_seen_pill: Pill = null
 
 
 @export_category("Magnifier Positions")
@@ -69,7 +104,11 @@ var _magnifier_boss: Sprite2D
 # START
 # ============================================================
 
-func start(p_board: DrRogueoBoard, p_boss_col: int, p_boss_row: int) -> void:
+func start(
+	p_board: DrRogueoBoard,
+	p_boss_col: int,
+	p_boss_row: int
+) -> void:
 
 	_reset_runtime_boss()
 
@@ -81,17 +120,25 @@ func start(p_board: DrRogueoBoard, p_boss_col: int, p_boss_row: int) -> void:
 	defeated = false
 	busy = false
 	boss_anim_frame = 0
+	_last_seen_pill = null
 
 	footprint_cells.clear()
 
 	for col in range(boss_col, boss_col + 2):
+
 		for row in range(boss_row, boss_row + 2):
+
 			footprint_cells[Vector2i(col, row)] = true
 
 	_create_boss_sprite(boss_col, boss_row)
 
-	if not AnimClock.frame_changed.is_connected(_on_anim_frame_changed):
-		AnimClock.frame_changed.connect(_on_anim_frame_changed)
+	if not AnimClock.frame_changed.is_connected(
+		_on_anim_frame_changed
+	):
+
+		AnimClock.frame_changed.connect(
+			_on_anim_frame_changed
+		)
 
 	_create_magnifier_display()
 
@@ -100,10 +147,16 @@ func start(p_board: DrRogueoBoard, p_boss_col: int, p_boss_row: int) -> void:
 
 func _reset_runtime_boss() -> void:
 
-	if AnimClock.frame_changed.is_connected(_on_anim_frame_changed):
-		AnimClock.frame_changed.disconnect(_on_anim_frame_changed)
+	if AnimClock.frame_changed.is_connected(
+		_on_anim_frame_changed
+	):
+
+		AnimClock.frame_changed.disconnect(
+			_on_anim_frame_changed
+		)
 
 	if boss_sprite != null and is_instance_valid(boss_sprite):
+
 		boss_sprite.queue_free()
 
 	boss_sprite = null
@@ -111,6 +164,7 @@ func _reset_runtime_boss() -> void:
 	_clear_bubble_field()
 
 	if _magnifier_root != null and is_instance_valid(_magnifier_root):
+
 		_magnifier_root.queue_free()
 
 	_magnifier_root = null
@@ -119,9 +173,82 @@ func _reset_runtime_boss() -> void:
 
 	footprint_cells.clear()
 
+	_last_seen_pill = null
+
 
 # ============================================================
-# BOSS SPRITE (identical layout to Boss1)
+# PROCESS
+# ============================================================
+
+func _process(_delta: float) -> void:
+
+	if Engine.is_editor_hint():
+		return
+
+	if board == null or defeated:
+		return
+
+	var current := board.current_pill
+
+	if current == null:
+		return
+
+	if not is_instance_valid(current):
+		return
+
+	# Only react when a genuinely new pill becomes active.
+	if current == _last_seen_pill:
+		return
+
+	_last_seen_pill = current
+
+	_damage_settled_pills()
+
+
+# ============================================================
+# SETTLED PILL DAMAGE
+# ============================================================
+
+func _damage_settled_pills() -> void:
+
+	if board == null:
+		return
+
+	# Take a snapshot because occupied_cells can change while
+	# we are removing destroyed halves.
+	var occupied_snapshot: Array = board.occupied_cells.keys()
+
+	for cell in occupied_snapshot:
+
+		if not board.occupied_cells.has(cell):
+			continue
+
+		var half := board.occupied_cells[cell] as PillHalf
+
+		if half == null:
+			continue
+
+		if not is_instance_valid(half):
+			board.occupied_cells.erase(cell)
+			continue
+
+		if half.pill_state == PillHalf.PillState.VANISHING:
+			continue
+
+		var destroyed: bool = half.take_hit()
+
+		if not destroyed:
+			continue
+
+		board.occupied_cells.erase(cell)
+
+		half.pill_state = PillHalf.PillState.VANISHING
+
+		board.vanishing_halves[half] = DrRogueoBoard.VANISH_DURATION
+
+
+# ============================================================
+# BOSS SPRITE
 # ============================================================
 
 func _place_at_boss_layer(sprite: Node) -> void:
@@ -129,13 +256,19 @@ func _place_at_boss_layer(sprite: Node) -> void:
 	if board == null:
 		return
 
-	var target_index: int = min(4, board.get_child_count() - 1)
+	var target_index: int = min(
+		4,
+		board.get_child_count() - 1
+	)
 
 	if target_index >= 0:
 		board.move_child(sprite, target_index)
 
 
-func _create_boss_sprite(p_boss_col: int, p_boss_row: int) -> void:
+func _create_boss_sprite(
+	p_boss_col: int,
+	p_boss_row: int
+) -> void:
 
 	boss_sprite = Sprite2D.new()
 
@@ -166,6 +299,7 @@ func _on_anim_frame_changed(frame: int) -> void:
 			boss_sprite.frame = boss_anim_frame
 
 		if _magnifier_boss != null:
+
 			_magnifier_boss.frame = frame
 			_magnifier_boss.position = magnifier_boss_position
 
@@ -177,8 +311,16 @@ func _on_anim_frame_changed(frame: int) -> void:
 			continue
 
 		var pair: int = bubble_pair_type.get(cell, 0)
+		var offset: int = bubble_frame_offset.get(cell, 0)
 
-		sprite.region_rect = _bubble_region(pair, frame)
+		var local_frame: int = (
+			frame + offset
+		) % 2
+
+		sprite.region_rect = _bubble_region(
+			pair,
+			local_frame
+		)
 
 
 # ============================================================
@@ -187,7 +329,9 @@ func _on_anim_frame_changed(frame: int) -> void:
 
 func _bubble_region(pair: int, frame: int) -> Rect2:
 
-	var frame_index: int = (pair * 2) + frame
+	var frame_index: int = (
+		pair * 2
+	) + frame
 
 	return Rect2(
 		frame_index * BUBBLE_FRAME_SIZE,
@@ -211,6 +355,7 @@ func _clear_bubble_field() -> void:
 
 	bubble_cells.clear()
 	bubble_pair_type.clear()
+	bubble_frame_offset.clear()
 
 
 func _place_bubble(cell: Vector2i) -> void:
@@ -230,125 +375,326 @@ func _place_bubble(cell: Vector2i) -> void:
 
 	var pair: int = board.rng.randi_range(0, 1)
 
-	bubble_pair_type[cell] = pair
+	# Randomly start either on the first or second frame of
+	# the selected animation pair.
+	var frame_offset: int = board.rng.randi_range(0, 1)
 
-	sprite.region_rect = _bubble_region(pair, AnimClock.frame)
+	bubble_pair_type[cell] = pair
+	bubble_frame_offset[cell] = frame_offset
+
+	var local_frame: int = (
+		AnimClock.frame + frame_offset
+	) % 2
+
+	sprite.region_rect = _bubble_region(
+		pair,
+		local_frame
+	)
 
 	bubble_cells[cell] = sprite
+
 	board.boss_maze_cells[cell] = true
 
 
-func _apply_bubble_field(windows: Dictionary) -> void:
+func _apply_bubble_field(path_cells: Dictionary) -> void:
 
 	_clear_bubble_field()
 
-	for row in range(0, DrRogueoBoard.BOARD_HEIGHT):
+	for row in range(
+		0,
+		DrRogueoBoard.BOARD_HEIGHT
+	):
 
-		for col in range(0, DrRogueoBoard.BOARD_WIDTH):
+		for col in range(
+			0,
+			DrRogueoBoard.BOARD_WIDTH
+		):
 
 			var cell := Vector2i(col, row)
 
 			if footprint_cells.has(cell):
 				continue
 
-			if _cell_is_in_path(cell, windows, row):
+			if path_cells.has(cell):
 				continue
 
 			_place_bubble(cell)
-
-
-func _cell_is_in_path(
-	cell: Vector2i,
-	windows: Dictionary,
-	row: int
-) -> bool:
-
-	if not windows.has(row):
-		return false
-
-	var window: Dictionary = windows[row]
-
-	return (
-		cell.x >= window["left"]
-		and cell.x < window["left"] + window["width"]
-	)
 
 
 # ============================================================
 # PATH GENERATION
 # ============================================================
 #
-# Walks a 1-2 cell wide corridor from directly above the boss
-# (forced 2-wide, aligned to the boss's own columns) up to the
-# pill spawn row (also forced 2-wide, same columns). Every turn
-# forces a 2x2 pivot (this row AND the row it came from) so a
-# pill always has room to rotate through a direction change.
+# This is deliberately NOT a random cell-by-cell maze walker.
 #
-# `difficulty` is 0.0 (full health, easy) .. 1.0 (near death,
-# hard): more turns and thinner corridors at higher difficulty.
+# The board is only 8x16, and we need a corridor that is:
+#
+# - guaranteed connected
+# - guaranteed to reach both openings
+# - guaranteed to have 2x2 corners
+# - guaranteed to have straightaways >= 3 cells
+# - guaranteed to leave one bubble cell between parallel runs
+#
+# The route is therefore built from long orthogonal sections.
+#
+# There are two equivalent routes:
+#
+# LEFT:
+#
+#   center
+#      |
+#      |
+#   +--+
+#   |
+#   |
+#   +------+
+#          |
+#          |
+#       +--+
+#       |
+#       |
+#       boss
+#
+# RIGHT is the mirror image.
 #
 # ============================================================
 
-func _generate_path_windows(difficulty: float) -> Dictionary:
+func _generate_path_cells() -> Dictionary:
 
-	var windows: Dictionary = {}
+	var path: Dictionary = {}
 
-	var boss_top_row: int = boss_row - 1
-	var spawn_row: int = 0
+	var center_left := OPENING_LEFT
+	var center_right := OPENING_LEFT + 1
 
-	windows[boss_top_row] = {"left": boss_col, "width": 2}
-	windows[spawn_row] = {"left": boss_col, "width": 2}
+	var outer_left := 0
+	var outer_left_right := 1
 
-	var turn_chance: float = lerpf(0.12, 0.5, difficulty)
-	var wide_chance: float = lerpf(0.8, 0.3, difficulty)
+	var outer_right := DrRogueoBoard.BOARD_WIDTH - 2
+	var outer_right_right := DrRogueoBoard.BOARD_WIDTH - 1
 
-	var current_left: int = boss_col
+	# --------------------------------------------------------
+	# The route alternates between center -> outer -> opposite
+	# outer -> center.
+	#
+	# The horizontal sections are 2 cells high, which provides
+	# the 2x2 turning space required by a two-half pill.
+	# --------------------------------------------------------
 
-	for row in range(boss_top_row - 1, spawn_row - 1, -1):
+	var go_left: bool = board.rng.randi_range(0, 1) == 0
 
-		var steps_remaining: int = row - spawn_row
-		var distance: int = boss_col - current_left
+	if go_left:
 
-		var must_home: bool = absi(distance) >= steps_remaining
+		# Center vertical:
+		# rows 0-3
+		_add_vertical_segment(
+			path,
+			center_left,
+			center_right,
+			0,
+			3
+		)
 
-		var width: int = 2 if randf() < wide_chance else 1
-		var max_left: int = DrRogueoBoard.BOARD_WIDTH - width
+		# First turn + horizontal:
+		# rows 3-4, x 0-4
+		_add_horizontal_segment(
+			path,
+			outer_left,
+			center_right,
+			3,
+			4
+		)
 
-		var new_left: int = current_left
+		# Left vertical:
+		# rows 4-7
+		_add_vertical_segment(
+			path,
+			outer_left,
+			outer_left_right,
+			4,
+			7
+		)
 
-		if must_home:
+		# Second turn + horizontal:
+		# rows 7-8, x 0-7
+		_add_horizontal_segment(
+			path,
+			outer_left,
+			outer_right_right,
+			7,
+			8
+		)
 
-			new_left = current_left + signi(distance)
+		# Right vertical:
+		# rows 8-10
+		_add_vertical_segment(
+			path,
+			outer_right,
+			outer_right_right,
+			8,
+			10
+		)
 
-			if new_left != current_left:
+		# Third turn + horizontal:
+		# rows 10-11, x 3-7
+		_add_horizontal_segment(
+			path,
+			center_left,
+			outer_right_right,
+			10,
+			11
+		)
 
-				width = 2
-				max_left = DrRogueoBoard.BOARD_WIDTH - width
+		# Final center vertical:
+		# rows 11-13
+		_add_vertical_segment(
+			path,
+			center_left,
+			center_right,
+			11,
+			13
+		)
 
-				if windows.has(row + 1):
-					windows[row + 1]["width"] = 2
+	else:
 
-		elif randf() < turn_chance:
+		# Center vertical:
+		# rows 0-3
+		_add_vertical_segment(
+			path,
+			center_left,
+			center_right,
+			0,
+			3
+		)
 
-			width = 2
-			max_left = DrRogueoBoard.BOARD_WIDTH - width
+		# First turn + horizontal:
+		# rows 3-4, x 3-7
+		_add_horizontal_segment(
+			path,
+			center_left,
+			outer_right_right,
+			3,
+			4
+		)
 
-			if windows.has(row + 1):
-				windows[row + 1]["width"] = 2
+		# Right vertical:
+		# rows 4-7
+		_add_vertical_segment(
+			path,
+			outer_right,
+			outer_right_right,
+			4,
+			7
+		)
 
-			var shift: int = [-1, 1][randi_range(0, 1)]
-			var candidate: int = current_left + shift
+		# Second turn + horizontal:
+		# rows 7-8, x 0-7
+		_add_horizontal_segment(
+			path,
+			outer_left,
+			outer_right_right,
+			7,
+			8
+		)
 
-			if absi(boss_col - candidate) < steps_remaining:
-				new_left = candidate
+		# Left vertical:
+		# rows 8-10
+		_add_vertical_segment(
+			path,
+			outer_left,
+			outer_left_right,
+			8,
+			10
+		)
 
-		new_left = clampi(new_left, 0, max_left)
+		# Third turn + horizontal:
+		# rows 10-11, x 0-4
+		_add_horizontal_segment(
+			path,
+			outer_left,
+			center_right,
+			10,
+			11
+		)
 
-		windows[row] = {"left": new_left, "width": width}
+		# Final center vertical:
+		# rows 11-13
+		_add_vertical_segment(
+			path,
+			center_left,
+			center_right,
+			11,
+			13
+		)
 
-		current_left = new_left
+	# --------------------------------------------------------
+	# Permanently clear the complete 2x3 spawn opening.
+	# --------------------------------------------------------
 
-	return windows
+	for row in range(
+		0,
+		OPENING_TOP_HEIGHT
+	):
+
+		for col in range(
+			OPENING_LEFT,
+			OPENING_LEFT + OPENING_WIDTH
+		):
+
+			path[Vector2i(col, row)] = true
+
+	# --------------------------------------------------------
+	# Permanently clear the complete 2x3 boss opening.
+	#
+	# boss_row is 14, so this covers rows 13, 14 and 15.
+	# --------------------------------------------------------
+
+	for row in range(
+		boss_row - 1,
+		DrRogueoBoard.BOARD_HEIGHT
+	):
+
+		for col in range(
+			boss_col,
+			boss_col + 2
+		):
+
+			path[Vector2i(col, row)] = true
+
+	return path
+
+
+func _add_vertical_segment(
+	path: Dictionary,
+	left_col: int,
+	right_col: int,
+	top_row: int,
+	bottom_row: int
+) -> void:
+
+	for row in range(
+		top_row,
+		bottom_row + 1
+	):
+
+		path[Vector2i(left_col, row)] = true
+		path[Vector2i(right_col, row)] = true
+
+
+func _add_horizontal_segment(
+	path: Dictionary,
+	left_col: int,
+	right_col: int,
+	top_row: int,
+	bottom_row: int
+) -> void:
+
+	for col in range(
+		left_col,
+		right_col + 1
+	):
+
+		path[Vector2i(col, top_row)] = true
+		path[Vector2i(col, bottom_row)] = true
 
 
 func _regenerate_maze() -> void:
@@ -356,20 +702,27 @@ func _regenerate_maze() -> void:
 	if board == null:
 		return
 
-	board.clear_occupied_cells()
+	# IMPORTANT:
+	# Do NOT clear occupied_cells here.
+	#
+	# Settled pills are part of the player's current board state
+	# and must survive maze regeneration.
+	#
+	# Only the temporary bubble field gets regenerated.
 
-	var difficulty: float = 1.0 - (float(health) / float(MAX_HEALTH))
+	var path_cells := _generate_path_cells()
 
-	var windows := _generate_path_windows(difficulty)
-
-	_apply_bubble_field(windows)
+	_apply_bubble_field(path_cells)
 
 
 # ============================================================
 # DAMAGE
 # ============================================================
 
-func try_handle_pill_landing(pill: Pill, grid_position: Vector2i) -> bool:
+func try_handle_pill_landing(
+	pill: Pill,
+	grid_position: Vector2i
+) -> bool:
 
 	if defeated or busy or board == null:
 		return false
@@ -377,12 +730,21 @@ func try_handle_pill_landing(pill: Pill, grid_position: Vector2i) -> bool:
 	if pill == null or not is_instance_valid(pill):
 		return false
 
-	var half_1_cell := pill.get_half_1_cell(grid_position)
-	var half_2_cell := pill.get_half_2_cell(grid_position)
+	var half_1_cell := pill.get_half_1_cell(
+		grid_position
+	)
+
+	var half_2_cell := pill.get_half_2_cell(
+		grid_position
+	)
 
 	var lands_on_boss: bool = (
-		footprint_cells.has(half_1_cell + Vector2i(0, 1))
-		or footprint_cells.has(half_2_cell + Vector2i(0, 1))
+		footprint_cells.has(
+			half_1_cell + Vector2i(0, 1)
+		)
+		or footprint_cells.has(
+			half_2_cell + Vector2i(0, 1)
+		)
 	)
 
 	if not lands_on_boss:
@@ -390,11 +752,17 @@ func try_handle_pill_landing(pill: Pill, grid_position: Vector2i) -> bool:
 
 	busy = true
 
-	_vanish_scoring_pill(pill, half_1_cell, half_2_cell)
+	_vanish_scoring_pill(
+		pill,
+		half_1_cell,
+		half_2_cell
+	)
 
 	boss_sprite.frame = 2 + boss_anim_frame
 
-	await board.get_tree().create_timer(DAMAGE_FLASH_DURATION).timeout
+	await board.get_tree().create_timer(
+		DAMAGE_FLASH_DURATION
+	).timeout
 
 	await board.wait_for_vanishing_halves()
 
@@ -403,7 +771,9 @@ func try_handle_pill_landing(pill: Pill, grid_position: Vector2i) -> bool:
 	return true
 
 
-func take_direct_damage(amount: int = HIT_DAMAGE) -> void:
+func take_direct_damage(
+	amount: int = HIT_DAMAGE
+) -> void:
 
 	if defeated or board == null or busy:
 		return
@@ -412,7 +782,9 @@ func take_direct_damage(amount: int = HIT_DAMAGE) -> void:
 
 	boss_sprite.frame = 2 + boss_anim_frame
 
-	await board.get_tree().create_timer(DAMAGE_FLASH_DURATION).timeout
+	await board.get_tree().create_timer(
+		DAMAGE_FLASH_DURATION
+	).timeout
 
 	await _finish_damage(amount)
 
@@ -423,26 +795,55 @@ func _vanish_scoring_pill(
 	half_2_cell: Vector2i
 ) -> void:
 
-	var half_1 := pill.get_node_or_null("Half1") as PillHalf
-	var half_2 := pill.get_node_or_null("Half2") as PillHalf
+	var half_1 := pill.get_node_or_null(
+		"Half1"
+	) as PillHalf
+
+	var half_2 := pill.get_node_or_null(
+		"Half2"
+	) as PillHalf
 
 	if board.has_pacman_trait():
-		half_1_cell = board.wrap_cell_if_needed(half_1_cell)
-		half_2_cell = board.wrap_cell_if_needed(half_2_cell)
+
+		half_1_cell = board.wrap_cell_if_needed(
+			half_1_cell
+		)
+
+		half_2_cell = board.wrap_cell_if_needed(
+			half_2_cell
+		)
 
 	if half_1 != null:
 
-		half_1.pill_state = PillHalf.PillState.VANISHING
+		half_1.pill_state = (
+			PillHalf.PillState.VANISHING
+		)
+
 		half_1.reparent(board, true)
-		half_1.position = board.grid_to_local(half_1_cell)
-		board.vanishing_halves[half_1] = DrRogueoBoard.VANISH_DURATION
+
+		half_1.position = board.grid_to_local(
+			half_1_cell
+		)
+
+		board.vanishing_halves[half_1] = (
+			DrRogueoBoard.VANISH_DURATION
+		)
 
 	if half_2 != null:
 
-		half_2.pill_state = PillHalf.PillState.VANISHING
+		half_2.pill_state = (
+			PillHalf.PillState.VANISHING
+		)
+
 		half_2.reparent(board, true)
-		half_2.position = board.grid_to_local(half_2_cell)
-		board.vanishing_halves[half_2] = DrRogueoBoard.VANISH_DURATION
+
+		half_2.position = board.grid_to_local(
+			half_2_cell
+		)
+
+		board.vanishing_halves[half_2] = (
+			DrRogueoBoard.VANISH_DURATION
+		)
 
 	pill.queue_free()
 
@@ -466,7 +867,10 @@ func _finish_damage(amount: int) -> void:
 
 	if _magnifier_boss != null:
 
-		_magnifier_boss.position = magnifier_boss_position
+		_magnifier_boss.position = (
+			magnifier_boss_position
+		)
+
 		_magnifier_boss.frame = boss_anim_frame
 
 	_regenerate_maze()
@@ -482,9 +886,14 @@ func _play_death() -> void:
 
 	for row in range(2, 6):
 
-		boss_sprite.frame = row * 2 + death_column
+		boss_sprite.frame = (
+			row * 2
+			+ death_column
+		)
 
-		await board.get_tree().create_timer(DEATH_FRAME_DURATION).timeout
+		await board.get_tree().create_timer(
+			DEATH_FRAME_DURATION
+		).timeout
 
 	boss_sprite.visible = false
 
@@ -494,49 +903,66 @@ func _play_death() -> void:
 
 
 # ============================================================
-# MAGNIFIER DISPLAY (identical pattern to Boss1Controller)
+# MAGNIFIER DISPLAY
 # ============================================================
 
 func _create_magnifier_display() -> void:
 
-	var slot := board.get_tree().get_first_node_in_group(MAGNIFIER_GROUP) as Node2D
+	var slot := board.get_tree().get_first_node_in_group(
+		MAGNIFIER_GROUP
+	) as Node2D
 
 	if slot == null:
 
 		push_warning(
-			"Boss2Controller: no node in group '%s'." % MAGNIFIER_GROUP
+			"Boss2Controller: no node in group '%s'."
+			% MAGNIFIER_GROUP
 		)
 
 		return
 
 	_magnifier_root = Node2D.new()
-	_magnifier_root.name = "Boss2MagnifierDisplay"
+	_magnifier_root.name = (
+		"Boss2MagnifierDisplay"
+	)
 
 	slot.add_child(_magnifier_root)
 
 	var gradient := Sprite2D.new()
 	gradient.name = "MagnifierGradient"
 	gradient.centered = false
-	gradient.texture = load(GRADIENT_TEXTURE_PATH)
-	gradient.position = magnifier_gradient_position
+	gradient.texture = load(
+		GRADIENT_TEXTURE_PATH
+	)
+	gradient.position = (
+		magnifier_gradient_position
+	)
 
 	_magnifier_root.add_child(gradient)
 
 	_magnifier_boss = Sprite2D.new()
 	_magnifier_boss.name = "MagnifierBoss"
-	_magnifier_boss.texture = load(MAGNIFIER_BOSS_TEXTURE_PATH)
+	_magnifier_boss.texture = load(
+		MAGNIFIER_BOSS_TEXTURE_PATH
+	)
 	_magnifier_boss.hframes = 2
 	_magnifier_boss.vframes = 1
 	_magnifier_boss.centered = false
-	_magnifier_boss.position = magnifier_boss_position
+	_magnifier_boss.position = (
+		magnifier_boss_position
+	)
 	_magnifier_boss.frame = boss_anim_frame
 
-	_magnifier_root.add_child(_magnifier_boss)
+	_magnifier_root.add_child(
+		_magnifier_boss
+	)
 
 	healthbar = Boss1Healthbar.new()
 	healthbar.name = "Boss2Healthbar"
 	healthbar.max_health = MAX_HEALTH
-	healthbar.position = magnifier_healthbar_position
+	healthbar.position = (
+		magnifier_healthbar_position
+	)
 
 	_magnifier_root.add_child(healthbar)
 
@@ -549,10 +975,18 @@ func _create_magnifier_display() -> void:
 
 func _exit_tree() -> void:
 
-	if AnimClock.frame_changed.is_connected(_on_anim_frame_changed):
-		AnimClock.frame_changed.disconnect(_on_anim_frame_changed)
+	if AnimClock.frame_changed.is_connected(
+		_on_anim_frame_changed
+	):
+
+		AnimClock.frame_changed.disconnect(
+			_on_anim_frame_changed
+		)
 
 	_clear_bubble_field()
 
-	if _magnifier_root != null and is_instance_valid(_magnifier_root):
+	if _magnifier_root != null and is_instance_valid(
+		_magnifier_root
+	):
+
 		_magnifier_root.queue_free()
