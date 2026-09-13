@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://c7ngsf876kyec" path="res://scenes/board/board.tscn" id="1_o5qli"]
 [ext_resource type="Texture2D" uid="uid://bcux6adx54vyf" path="res://art/ui-placement-guide.png" id="2_choun"]
 [ext_resource type="Script" uid="uid://dxg2fi13nn65r" path="res://scripts/ui/background_preset.gd" id="2_jscy8"]
+[ext_resource type="Script" uid="uid://cnbjsg0uxtimg" path="res://scripts/boss/boss2_controller.gd" id="3_dgi5k"]
 [ext_resource type="Resource" uid="uid://c5byrn3mbcid6" path="res://art/palettes/background_default.tres" id="3_pm3ni"]
 [ext_resource type="Script" uid="uid://6g8cus0noee" path="res://scripts/board/board.gd" id="3_sugp2"]
 [ext_resource type="PackedScene" uid="uid://dr2qu03qen5pf" path="res://scenes/ui/OD-gauge.tscn" id="3_ya4ey"]
@@ -60,6 +61,10 @@ script = ExtResource("1_fv21b")
 script = ExtResource("28_2f3dj")
 magnifier_boss_position = Vector2(25, 17)
 magnifier_health = 8
+
+[node name="Boss2Controller" type="Node2D" parent="." unique_id=471784219]
+script = ExtResource("3_dgi5k")
+magnifier_boss_position = Vector2(29, 17)
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1261090602]
 offset_right = 427.0
@@ -150,11 +155,8 @@ shift_sprite_texture = ExtResource("23_2wyq8")
 ghost_sprite_texture = ExtResource("24_vxglm")
 thwomp_sprite_texture = ExtResource("27_tel4y")
 store_scene = ExtResource("22_y6deb")
+debug_enabled = true
 debug_stage = 4
-debug_item_slot_1 = "THWOMP"
-debug_item_slot_2 = "THWOMP"
-debug_item_slot_3 = "PONG PILL"
-debug_trait_slot_1 = "TETRIS"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 

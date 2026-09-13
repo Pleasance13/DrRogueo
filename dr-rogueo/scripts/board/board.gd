@@ -421,10 +421,16 @@ var pong_controller: PongController = null
 var thwomp_controller: ThwompController = null
 
 # Active boss fight controller, or null outside the boss level.
-var boss_controller: Boss1Controller = null
+var boss_controller: Node = null
 
 # Cells permanently occupied by the boss's own body.
 var boss_blocked_cells: Dictionary = {}
+
+# Vector2i -> true. Temporary obstacles (e.g. Boss 2's bubble
+# maze). Solid like boss_blocked_cells, but never checked for
+# direct-damage purposes (Pong/Thwomp only damage the boss's
+# real footprint, in boss_blocked_cells).
+var boss_maze_cells: Dictionary = {}
 
 # Vector2i -> PillHalf
 var occupied_cells: Dictionary = {}
@@ -1450,6 +1456,7 @@ func advance_to_next_level() -> void:
 		boss_controller.queue_free()
 		boss_controller = null
 		boss_blocked_cells.clear()
+		boss_maze_cells.clear()
 
 
 	# ========================================================
@@ -1996,11 +2003,13 @@ func _setup_level_content() -> void:
 		generate_starting_viruses()
 
 
+
 func _start_boss_level() -> void:
 
 	clear_virus_cells()
 
 	boss_blocked_cells.clear()
+	boss_maze_cells.clear()
 
 	var boss_col := BOARD_WIDTH / 2 - 1
 	var boss_row := BOARD_HEIGHT - 2
@@ -2009,24 +2018,14 @@ func _start_boss_level() -> void:
 		for row in range(boss_row, boss_row + 2):
 			boss_blocked_cells[Vector2i(col, row)] = true
 
-	# Boss1Controller is a persistent node in Main.tscn.
-	# Find that existing node instead of creating a new one.
-	boss_controller = get_tree().get_first_node_in_group(
-		"boss_1_controller"
-	) as Boss1Controller
-
-	if boss_controller == null:
-		boss_controller = get_node_or_null("../Boss1Controller") as Boss1Controller
+	boss_controller = _pick_boss_controller()
 
 	if boss_controller == null:
 		push_error(
-			"Board: Could not find the Boss1Controller node in Main.tscn."
+			"Board: Could not find a boss controller node in Main.tscn."
 		)
 		return
 
-	# Draw above Board_Frame/Board_Frame_Glass/Board_Grid/
-	# PacmanEffect (indices 0-3) but below anything spawned
-	# after this (pills, viruses, items).
 	var parent := boss_controller.get_parent()
 
 	if parent != null:
@@ -2036,6 +2035,32 @@ func _start_boss_level() -> void:
 		)
 
 	boss_controller.start(self, boss_col, boss_row)
+
+
+func _pick_boss_controller() -> Node:
+
+	var boss_1 := get_tree().get_first_node_in_group("boss_1_controller")
+
+	if boss_1 == null:
+		boss_1 = get_node_or_null("../Boss1Controller")
+
+	var boss_2 := get_tree().get_first_node_in_group("boss_2_controller")
+
+	if boss_2 == null:
+		boss_2 = get_node_or_null("../Boss2Controller")
+
+	var candidates: Array = []
+
+	if boss_1 != null:
+		candidates.append(boss_1)
+
+	if boss_2 != null:
+		candidates.append(boss_2)
+
+	if candidates.is_empty():
+		return null
+
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
 func _no_more_enemies() -> bool:
@@ -2796,6 +2821,9 @@ func is_cell_filled(
 		return true
 
 	if boss_blocked_cells.has(cell):
+		return true
+
+	if boss_maze_cells.has(cell):
 		return true
 
 	return false
@@ -4177,6 +4205,30 @@ func settle_current_pill() -> void:
 		current_pill.is_ghost_pill = false
 
 
+	# ========================================================
+	# BOSS DIRECT-LANDING INTERCEPT (e.g. Boss 2's bubble maze)
+	# ========================================================
+
+	if boss_controller != null and boss_controller.has_method("try_handle_pill_landing"):
+
+		var landed_on_boss: bool = await boss_controller.try_handle_pill_landing(
+			current_pill,
+			current_grid_position
+		)
+
+		if landed_on_boss:
+
+			current_pill = null
+
+			fall_timer = 0.0
+			lock_timer = 0.0
+			lock_reset_count = 0
+
+			resolve_board()
+
+			return
+
+
 	var half_1 := (
 		current_pill.get_node_or_null("Half1")
 		as PillHalf
@@ -4378,16 +4430,14 @@ func _resolve_matches_and_gravity() -> bool:
 		# belongs to the boss instead.
 		# ========================================================
 
-		if boss_controller != null:
+		if boss_controller != null and boss_controller.has_method("check_indicators"):
 
 			var boss_hit: bool = await boss_controller.check_indicators()
 
 			if _no_more_enemies():
-
 				return true
 
 			if boss_hit:
-
 				continue
 
 
@@ -6123,6 +6173,11 @@ func gravity_unit_can_fall(
 
 
 		if boss_blocked_cells.has(destination):
+
+			return false
+
+
+		if boss_maze_cells.has(destination):
 
 			return false
 
