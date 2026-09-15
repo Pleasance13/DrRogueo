@@ -64,16 +64,6 @@ magnifier_health = 8
 
 [node name="Boss2Controller" type="Node2D" parent="." unique_id=471784219]
 script = ExtResource("3_dgi5k")
-telegraph_flash_count = 3
-vine_extend_speed = 40.0
-high_health_vine_interval = 0.5
-medium_health_vine_interval = 0.25
-low_health_vine_interval = 0.0
-high_health_virus_count = 4
-medium_health_virus_count = 8
-low_health_virus_count = 12
-virus_throw_speed = 300.0
-virus_throw_arc_height = 16.0
 magnifier_boss_position = Vector2(29, 17)
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1261090602]
