@@ -4664,6 +4664,9 @@ func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
 
 	var result: Array[Vector2i] = []
 
+	if not has_tetris_trait():
+		return result
+
 	for row in range(BOARD_HEIGHT):
 
 		var full := true
@@ -4689,7 +4692,9 @@ func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
 			break
 
 		if full:
-			result.append(Vector2i(0, row))
+
+			for col in range(BOARD_WIDTH):
+				result.append(Vector2i(col, row))
 
 	return result
 

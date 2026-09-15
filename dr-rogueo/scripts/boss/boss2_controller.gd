@@ -10,21 +10,33 @@ extends Node2D
 #
 #   VINES -- small bubble globs sit on the board as cover.
 #   Vines telegraph from a random board edge, then rapidly
-#   grow across the board for 2 global-clock ticks.
+#   grow across the board. Only a vine that is STILL actively
+#   extending is lethal to the falling pill -- once a vine has
+#   finished growing it can be safely landed next to/on top of.
 #   Bubbles do NOT block vines; they only block player pills.
 #   Settled pill halves in the vine's path ARE destroyed and
 #   the vine pierces straight through them.
-#   If the vine's line overlaps the currently FALLING pill
-#   while extended, that pill is destroyed and the fight moves
-#   to the VIRUSES phase.
 #   Landing a pill on the boss itself deals damage, fully clears
 #   the board (settled pills + bubbles), and rerolls fresh globs.
 #
-#   VIRUSES -- triggered only by getting hit by a vine. A
-#   handful of normal viruses are spat from the boss toward
-#   their landing cells while a horizontal guard vine blocks
-#   the lower board. Clear every virus via normal matching to
-#   retract the guard and return to VINES.
+#   Vines now RETRACT after their attack instead of disappearing.
+#   The next wave's wait interval begins only after every vine
+#   from the previous wave has completely retracted.
+#
+#   VIRUSES -- triggered only by getting impaled by an
+#   extending vine. A handful of normal viruses are spat from
+#   the boss toward their landing cells while a horizontal
+#   guard vine blocks the lower board. Each new virus phase
+#   grows a brand new guard vine higher up than the last,
+#   animated in from an alternating side with a single tip
+#   (never both). When every virus is cleared, the guard vine
+#   retracts back the way it came before the fight returns to
+#   VINES.
+#
+#   Two permanent bubble columns flank the boss's own 2x2
+#   footprint (its full row-span, one column either side) in
+#   BOTH phases, signalling that a pill can't be snuck in next
+#   to the boss to score a hit.
 #
 # ============================================================
 
@@ -119,6 +131,24 @@ var medium_health_vine_count: int = 3
 var low_health_vine_count: int = 4
 
 
+@export_subgroup("Vine Attack Pacing")
+
+@export_range(0.0, 10.0, 0.05)
+var high_health_vine_interval: float = 1.5
+
+@export_range(0.0, 10.0, 0.05)
+var medium_health_vine_interval: float = 1.0
+
+@export_range(0.0, 10.0, 0.05)
+var low_health_vine_interval: float = 0.6
+
+
+@export_subgroup("Vine Retraction")
+
+@export_range(1.0, 200.0, 1.0)
+var vine_retract_speed: float = 50.0
+
+
 @export_subgroup("Virus Counts")
 
 @export_range(0, 16, 1)
@@ -133,17 +163,12 @@ var low_health_virus_count: int = 7
 
 @export_category("Virus Throw Tuning")
 
-# Virus projectile speed in pixels per second.
 @export_range(10.0, 1000.0, 5.0)
 var virus_throw_speed: float = 100.0
 
-# Height of the projectile arc in pixels.
 @export_range(0.0, 32.0, 0.5)
 var virus_throw_arc_height: float = 6.0
 
-# Offset from the boss sprite's top-left corner.
-#
-# Default (8, 8) is the exact centre of the 16x16 boss.
 @export var virus_throw_origin: Vector2 = Vector2(8.0, 8.0)
 
 
@@ -192,7 +217,6 @@ var busy := false
 var boss_col := 0
 var boss_row := 0
 
-# This rises by one row every time VIRUSES begins.
 var guard_row := 0
 
 var horizontal_row_min := 0
@@ -202,14 +226,19 @@ var footprint_cells: Dictionary = {}
 
 var active_vines: Array = []
 
-# Vector2i -> Sprite2D
+var _vine_spawn_timer := 0.0
+var _vine_waiting_for_next_wave := false
+
 var bubble_cells: Dictionary = {}
 var bubble_pair_type: Dictionary = {}
 var bubble_frame_offset: Dictionary = {}
 
-# Vector2i -> true
+var _side_bubble_cells: Dictionary = {}
+
+var _guard_vine = null
 var guard_cells: Dictionary = {}
-var _guard_visual: Node2D = null
+
+var _guard_next_side := 0
 
 var _phase_viruses_ready := false
 
@@ -221,12 +250,8 @@ var healthbar: Boss1Healthbar
 var _magnifier_root: Node2D
 var _magnifier_boss: Sprite2D
 
-# Used to cancel an in-progress bubble build if the board resets.
 var _bubble_build_generation := 0
 
-# Number of times the VIRUSES phase has been entered.
-# The first virus phase uses the normal position directly
-# above the boss. Every later virus phase raises it by one.
 var _virus_phase_count := 0
 
 
@@ -246,8 +271,6 @@ func start(
 	boss_col = p_boss_col
 	boss_row = p_boss_row
 
-	# First virus phase will place the guard directly above
-	# the boss. It gets raised by one row on subsequent phases.
 	guard_row = boss_row - 1
 
 	horizontal_row_min = OPENING_TOP_HEIGHT
@@ -259,6 +282,9 @@ func start(
 	boss_anim_frame = 0
 	current_phase = Phase.VINES
 	_virus_phase_count = 0
+	_vine_spawn_timer = 0.0
+	_vine_waiting_for_next_wave = false
+	_guard_next_side = 0
 
 	footprint_cells.clear()
 
@@ -276,6 +302,8 @@ func start(
 
 	_create_magnifier_display()
 
+	_create_boss_side_bubbles()
+
 	_spawn_bubble_globs()
 
 
@@ -285,7 +313,9 @@ func _reset_runtime_boss() -> void:
 
 	if AnimClock.frame_changed.is_connected(_on_anim_frame_changed):
 
-		AnimClock.frame_changed.disconnect(_on_anim_frame_changed)
+		AnimClock.frame_changed.disconnect(
+			_on_anim_frame_changed
+		)
 
 	if boss_sprite != null and is_instance_valid(boss_sprite):
 
@@ -294,8 +324,8 @@ func _reset_runtime_boss() -> void:
 	boss_sprite = null
 
 	_clear_all_vines()
-	_clear_bubble_globs()
-	_remove_guard_row()
+	_clear_bubble_globs(true)
+	_remove_guard_vine_immediate()
 
 	if _magnifier_root != null and is_instance_valid(_magnifier_root):
 
@@ -308,13 +338,15 @@ func _reset_runtime_boss() -> void:
 	footprint_cells.clear()
 
 	_virus_phase_count = 0
+	_vine_spawn_timer = 0.0
+	_vine_waiting_for_next_wave = false
 
 
 # ============================================================
 # PROCESS
 # ============================================================
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 
 	if Engine.is_editor_hint():
 		return
@@ -324,30 +356,71 @@ func _process(_delta: float) -> void:
 
 	if current_phase == Phase.VINES:
 
-		_process_vine_phase()
+		_process_vine_phase(delta)
 
 	else:
 
 		_process_virus_phase()
 
 
-func _process_vine_phase() -> void:
+func _process_vine_phase(delta: float) -> void:
 
 	var pill := board.current_pill
 
-	if pill == null or not is_instance_valid(pill):
+	if pill != null and is_instance_valid(pill):
+
+		for v in active_vines:
+
+			if not v.is_still_growing():
+				continue
+
+			if _pill_intersects_vine(v):
+
+				_on_pill_hit_by_vine()
+
+				return
+
+	if not active_vines.is_empty():
 		return
 
-	for v in active_vines:
+	if not _vine_waiting_for_next_wave:
 
-		if v.state != 1:
+		_spawn_vine_wave()
+
+		if active_vines.is_empty():
+			return
+
+		_vine_waiting_for_next_wave = false
+
+		return
+
+	_vine_spawn_timer -= delta
+
+	if _vine_spawn_timer > 0.0:
+		return
+
+	_spawn_vine_wave()
+
+	if not active_vines.is_empty():
+
+		_vine_waiting_for_next_wave = false
+
+
+func _spawn_vine_wave() -> void:
+
+	var wave_count := _vine_count_for_tier()
+
+	if wave_count <= 0:
+		return
+
+	for i in range(wave_count):
+
+		var candidate: Variant = _pick_valid_vine_spot()
+
+		if candidate == null:
 			continue
 
-		if _pill_intersects_vine(v):
-
-			_on_pill_hit_by_vine()
-
-			return
+		_spawn_vine_at(candidate)
 
 
 func _process_virus_phase() -> void:
@@ -398,24 +471,13 @@ func _on_anim_frame_changed(frame: int) -> void:
 	if defeated or busy or current_phase != Phase.VINES:
 		return
 
-	var finished: Array = []
-
 	for v in active_vines:
 
-		v.advance_tick()
+		if not is_instance_valid(v):
+			continue
 
-		if v.state == 2:
-
-			finished.append(v)
-
-	for v in finished:
-
-		active_vines.erase(v)
-
-		if is_instance_valid(v):
-			v.queue_free()
-
-	_maintain_vine_count()
+		if v.state == 0 or v.state == 1:
+			v.advance_tick()
 
 
 # ============================================================
@@ -444,6 +506,19 @@ func _vine_count_for_tier() -> int:
 	return low_health_vine_count
 
 
+func _vine_interval_for_tier() -> float:
+
+	var fraction := _health_fraction()
+
+	if fraction > high_health_threshold:
+		return high_health_vine_interval
+
+	if fraction > medium_health_threshold:
+		return medium_health_vine_interval
+
+	return low_health_vine_interval
+
+
 func _virus_count_for_tier() -> int:
 
 	var fraction := _health_fraction()
@@ -455,24 +530,6 @@ func _virus_count_for_tier() -> int:
 		return medium_health_virus_count
 
 	return low_health_virus_count
-
-
-func _maintain_vine_count() -> void:
-
-	var target := _vine_count_for_tier()
-
-	var guard := 0
-
-	while active_vines.size() < target and guard < 20:
-
-		guard += 1
-
-		var candidate: Variant = _pick_valid_vine_spot()
-
-		if candidate == null:
-			break
-
-		_spawn_vine_at(candidate)
 
 
 func _pick_valid_vine_spot() -> Variant:
@@ -574,6 +631,22 @@ func _spawn_vine_at(candidate: Vector2i) -> void:
 	v.queue_redraw()
 
 
+func _on_vine_finished_retracting(v) -> void:
+
+	if active_vines.has(v):
+
+		active_vines.erase(v)
+
+	if is_instance_valid(v):
+
+		v.queue_free()
+
+	if active_vines.is_empty():
+
+		_vine_waiting_for_next_wave = true
+		_vine_spawn_timer = _vine_interval_for_tier()
+
+
 func _clear_all_vines() -> void:
 
 	for v in active_vines:
@@ -582,6 +655,9 @@ func _clear_all_vines() -> void:
 			v.queue_free()
 
 	active_vines.clear()
+
+	_vine_waiting_for_next_wave = false
+	_vine_spawn_timer = 0.0
 
 
 func _pill_intersects_vine(v) -> bool:
@@ -592,6 +668,11 @@ func _pill_intersects_vine(v) -> bool:
 		board.current_grid_position
 	)
 
+	var visible_cells: Array = v.cells.slice(
+		0,
+		v.visible_count
+	)
+
 	for cell in cells:
 
 		var check_cell := cell
@@ -600,7 +681,7 @@ func _pill_intersects_vine(v) -> bool:
 
 			check_cell = board.wrap_cell_if_needed(cell)
 
-		if v.cells.has(check_cell):
+		if visible_cells.has(check_cell):
 
 			return true
 
@@ -630,13 +711,6 @@ class Vine extends Node2D:
 
 	const ATTACK_TICKS := 2
 
-	# vines.png is a 3x2 spritesheet:
-	#
-	# [UP TIP]    [DOWN TIP]   [VERTICAL REPEAT]
-	# [RIGHT TIP] [LEFT TIP]   [HORIZONTAL REPEAT]
-	#
-	# Every sprite is 8x8.
-
 	const TIP_UP := 0
 	const TIP_DOWN := 1
 	const VERTICAL_REPEAT := 2
@@ -652,17 +726,18 @@ class Vine extends Node2D:
 
 	var state: int = 0
 	# 0 = TELEGRAPH
-	# 1 = ATTACKING
-	# 2 = DONE
+	# 1 = ATTACKING / EXTENDING
+	# 2 = RETRACTING
+	# 3 = DONE
 
 	var tick_count: int = 0
 
-	# Complete attack path.
 	var cells: Array = []
 
-	# Number of cells currently visible during rapid growth.
 	var visible_count: int = 0
+
 	var grow_elapsed := 0.0
+	var retract_elapsed := 0.0
 
 	var vine_texture: Texture2D
 
@@ -712,39 +787,112 @@ class Vine extends Node2D:
 		set_process(true)
 
 
-	func _process(delta: float) -> void:
+	func _duration() -> float:
 
-		if state != 1:
-			return
-
-		if visible_count >= cells.size():
-			return
-
-		grow_elapsed += delta
-
-		var total_duration: float = (
+		return (
 			float(cells.size())
-			/ maxf(
-				controller.vine_extend_speed,
-				0.01
-			)
+			/ maxf(controller.vine_extend_speed, 0.01)
 		)
 
-		var progress: float = clamp(
-			grow_elapsed / total_duration,
-			0.0,
-			1.0
+
+	func _retract_duration() -> float:
+
+		return (
+			float(cells.size())
+			/ maxf(controller.vine_retract_speed, 0.01)
 		)
 
-		visible_count = clampi(
-			int(ceil(
-				float(cells.size()) * progress
-			)),
-			1,
-			cells.size()
-		)
+
+	func start_retract() -> void:
+
+		if state == 2 or state == 3:
+			return
+
+		state = 2
+		retract_elapsed = 0.0
+
+		visible_count = cells.size()
 
 		queue_redraw()
+
+
+	func _process(delta: float) -> void:
+
+		if state == 1:
+
+			if visible_count >= cells.size():
+				return
+
+			grow_elapsed += delta
+
+			var total_duration: float = _duration()
+
+			var progress: float = clamp(
+				grow_elapsed / total_duration,
+				0.0,
+				1.0
+			)
+
+			visible_count = clampi(
+				int(ceil(
+					float(cells.size()) * progress
+				)),
+				1,
+				cells.size()
+			)
+
+			queue_redraw()
+
+			return
+
+
+		if state == 2:
+
+			if cells.is_empty():
+
+				state = 3
+
+				controller._on_vine_finished_retracting(self)
+
+				return
+
+			retract_elapsed += delta
+
+			var total_duration: float = _retract_duration()
+
+			var progress: float = clamp(
+				retract_elapsed / total_duration,
+				0.0,
+				1.0
+			)
+
+			visible_count = clampi(
+				cells.size()
+				- int(ceil(
+					float(cells.size()) * progress
+				)),
+				0,
+				cells.size()
+			)
+
+			queue_redraw()
+
+			if progress >= 1.0:
+
+				state = 3
+				visible_count = 0
+
+				queue_redraw()
+
+				controller._on_vine_finished_retracting(self)
+
+
+	func is_still_growing() -> bool:
+
+		return (
+			state == 1
+			and visible_count < cells.size()
+		)
 
 
 	func _direction_vector() -> Vector2i:
@@ -796,19 +944,13 @@ class Vine extends Node2D:
 
 	func advance_tick() -> void:
 
-		tick_count += 1
-
 		if state == 0:
 
-			# Each warning flash occupies two clock ticks:
-			# visible, invisible.
-			#
-			# Example:
-			# 2 flashes = 4 ticks
-			# 3 flashes = 6 ticks
 			var telegraph_ticks: int = (
 				controller.telegraph_flash_count * 2
 			)
+
+			tick_count += 1
 
 			if tick_count >= telegraph_ticks:
 
@@ -823,9 +965,13 @@ class Vine extends Node2D:
 
 		elif state == 1:
 
+			tick_count += 1
+
 			if tick_count >= ATTACK_TICKS:
 
-				state = 2
+				if visible_count >= cells.size():
+
+					start_retract()
 
 			queue_redraw()
 
@@ -855,9 +1001,6 @@ class Vine extends Node2D:
 
 				break
 
-			# Bubbles deliberately do NOT block vines.
-			#
-			# Other boss maze cells still can.
 			if (
 				board_ref.boss_maze_cells.has(cell)
 				and not controller.bubble_cells.has(cell)
@@ -884,8 +1027,6 @@ class Vine extends Node2D:
 
 		if state == 0:
 
-			# Telegraph:
-			# The starting tip flashes on odd ticks.
 			if tick_count % 2 == 1:
 
 				_draw_vine_sprite(
@@ -893,7 +1034,10 @@ class Vine extends Node2D:
 					_tip_frame()
 				)
 
-		elif state == 1:
+			return
+
+
+		if state == 1 or state == 2:
 
 			if cells.is_empty():
 				return
@@ -906,26 +1050,66 @@ class Vine extends Node2D:
 			if count <= 0:
 				return
 
-			# The vine grows from its starting edge toward
-			# the far end. The directional tip is always at
-			# the leading end of the visible vine.
 			for i in range(count):
 
 				var cell: Vector2i = cells[i]
 
-				if i == count - 1:
+				if state == 1:
 
-					_draw_vine_sprite(
-						cell,
-						_tip_frame()
-					)
+					# EXTENSION:
+					# The leading tip is the far end of the
+					# currently visible vine.
+					if i == count - 1:
+
+						_draw_vine_sprite(
+							cell,
+							_tip_frame()
+						)
+
+					else:
+
+						_draw_vine_sprite(
+							cell,
+							_repeat_frame()
+						)
 
 				else:
 
-					_draw_vine_sprite(
-						cell,
-						_repeat_frame()
-					)
+					# RETRACTION:
+					#
+					# IMPORTANT:
+					# The tip remains at the LEADING/FAR END
+					# of the visible vine, exactly as it did
+					# during extension.
+					#
+					# The visible section simply gets shorter
+					# from the far end back toward the wall.
+					#
+					# Right-origin example:
+					#
+					# <-------|
+					#  <------|
+					#   <-----|
+					#    <----|
+					#     <---|
+					#      <--|
+					#       <-|
+					#        <|
+					#
+					# Left-origin is the mirror image.
+					if i == count - 1:
+
+						_draw_vine_sprite(
+							cell,
+							_tip_frame()
+						)
+
+					else:
+
+						_draw_vine_sprite(
+							cell,
+							_repeat_frame()
+						)
 
 
 	func _draw_vine_sprite(
@@ -963,16 +1147,15 @@ class Vine extends Node2D:
 
 func _start_virus_phase() -> void:
 
+	busy = true
+
 	current_phase = Phase.VIRUSES
 	_phase_viruses_ready = false
 
-	# Phase transition: remove any settled player pills.
 	_clear_all_settled_pills()
 
 	_clear_bubble_globs()
 
-	# The first virus phase starts directly above the boss.
-	# Every later virus phase moves the guard one row upward.
 	_virus_phase_count += 1
 
 	var desired_guard_row: int = (
@@ -980,16 +1163,12 @@ func _start_virus_phase() -> void:
 		- _virus_phase_count
 	)
 
-	# Keep the guard inside the playable board and leave at
-	# least the normal opening area available for viruses.
 	guard_row = maxi(
 		OPENING_TOP_HEIGHT + 1,
 		desired_guard_row
 	)
 
-	_add_guard_row()
-
-	busy = true
+	await _spawn_guard_vine()
 
 	await _spawn_phase_viruses()
 
@@ -1017,7 +1196,6 @@ func _spawn_phase_viruses() -> void:
 
 		attempts += 1
 
-		# As guard_row rises, this area naturally shrinks.
 		if guard_row - 1 < OPENING_TOP_HEIGHT:
 			break
 
@@ -1070,9 +1248,6 @@ func _animate_virus_spit(
 	if virus == null or not is_instance_valid(virus):
 		return
 
-	# The real gameplay virus has already been created at its
-	# final board cell. Hide it while a separate visual copy
-	# travels from the boss.
 	virus.visible = false
 
 	if board.virus_scene == null:
@@ -1092,22 +1267,13 @@ func _animate_virus_spit(
 
 		return
 
-	# Give the flying visual the exact same color.
 	flying_virus.virus_color = virus.virus_color
 	flying_virus.visual_state = Virus.VisualState.NORMAL
 
-	# Keep the projectile behind the boss sprite.
 	flying_virus.z_index = BUBBLE_Z_INDEX
 
 	board.add_child(flying_virus)
 
-	# --------------------------------------------------------
-	# THROW ORIGIN
-	# --------------------------------------------------------
-	#
-	# Editable from the Inspector.
-	# Default (8,8) is the centre of the 16x16 boss.
-	#
 	var boss_top_left := board.grid_to_local(
 		Vector2i(
 			boss_col,
@@ -1126,14 +1292,6 @@ func _animate_virus_spit(
 
 	flying_virus.position = start_position
 
-	# --------------------------------------------------------
-	# THROW SPEED
-	# --------------------------------------------------------
-	#
-	# The duration is based on distance, so every projectile
-	# travels at the same approximate speed regardless of
-	# where its target happens to be.
-	#
 	var distance: float = start_position.distance_to(
 		target_position
 	)
@@ -1147,10 +1305,6 @@ func _animate_virus_spit(
 		distance / throw_speed,
 		0.05
 	)
-
-	# --------------------------------------------------------
-	# ARC
-	# --------------------------------------------------------
 
 	var control_point := (
 		start_position.lerp(
@@ -1187,7 +1341,6 @@ func _animate_virus_spit(
 			1.0
 		)
 
-		# Quadratic Bezier arc.
 		var a := start_position.lerp(
 			control_point,
 			t
@@ -1215,11 +1368,8 @@ func _animate_virus_spit(
 
 		return
 
-	# Snap to the target.
 	flying_virus.position = target_position
 
-	# Let the projectile visually arrive before swapping to
-	# the real gameplay virus.
 	await get_tree().process_frame
 
 	if is_instance_valid(flying_virus):
@@ -1231,7 +1381,7 @@ func _animate_virus_spit(
 		virus.visible = true
 
 
-func _add_guard_row() -> void:
+func _add_guard_row_cells() -> void:
 
 	guard_cells.clear()
 
@@ -1245,18 +1395,35 @@ func _add_guard_row() -> void:
 		guard_cells[cell] = true
 		board.boss_maze_cells[cell] = true
 
-	_guard_visual = GuardBar.new()
-	_guard_visual.controller = self
-	_guard_visual.z_index = VINE_Z_INDEX
 
-	board.add_child(_guard_visual)
+func _spawn_guard_vine() -> void:
 
-	_place_at_boss_layer(_guard_visual)
+	_add_guard_row_cells()
 
-	_guard_visual.queue_redraw()
+	_guard_vine = GuardVine.new()
+	_guard_vine.controller = self
+	_guard_vine.row = guard_row
+	_guard_vine.side = _guard_next_side
+	_guard_vine.z_index = VINE_Z_INDEX
+
+	_guard_next_side = 1 - _guard_next_side
+
+	board.add_child(_guard_vine)
+
+	_place_at_boss_layer(_guard_vine)
+
+	_guard_vine.start_extend()
+
+	await _guard_vine.extension_finished
 
 
-func _remove_guard_row() -> void:
+func _retract_and_remove_guard_vine() -> void:
+
+	if _guard_vine != null and is_instance_valid(_guard_vine):
+
+		_guard_vine.start_retract()
+
+		await _guard_vine.retraction_finished
 
 	for cell in guard_cells.keys():
 
@@ -1265,41 +1432,54 @@ func _remove_guard_row() -> void:
 
 	guard_cells.clear()
 
-	if (
-		_guard_visual != null
-		and is_instance_valid(_guard_visual)
-	):
+	if _guard_vine != null and is_instance_valid(_guard_vine):
 
-		_guard_visual.queue_free()
+		_guard_vine.queue_free()
 
-	_guard_visual = null
+	_guard_vine = null
 
 
-func _end_virus_phase() -> void:
+func _remove_guard_vine_immediate() -> void:
 
-	# Phase transition: clear any settled player pills before
-	# rebuilding the VINES board.
-	_clear_all_settled_pills()
+	for cell in guard_cells.keys():
 
-	current_phase = Phase.VINES
+		if board != null:
+			board.boss_maze_cells.erase(cell)
 
-	_remove_guard_row()
+	guard_cells.clear()
 
-	await _spawn_bubble_globs()
+	if _guard_vine != null and is_instance_valid(_guard_vine):
+
+		_guard_vine.queue_free()
+
+	_guard_vine = null
 
 
 # ============================================================
 # GUARD VINE
 # ============================================================
 
-class GuardBar extends Node2D:
+class GuardVine extends Node2D:
 
-	var controller
-	var vine_texture: Texture2D
+	signal extension_finished
+	signal retraction_finished
 
 	const TIP_LEFT := 4
 	const TIP_RIGHT := 3
 	const HORIZONTAL_REPEAT := 5
+
+	var controller
+	var row: int = 0
+	var side: int = 0
+
+	var vine_texture: Texture2D
+
+	var total_cells: int = DrRogueoBoard.BOARD_WIDTH
+	var visible_count: int = 0
+
+	var growing := false
+	var retracting := false
+	var elapsed := 0.0
 
 
 	func _ready() -> void:
@@ -1310,57 +1490,228 @@ class GuardBar extends Node2D:
 
 		z_index = Boss2Controller.VINE_Z_INDEX
 
+		set_process(true)
+
+
+	func _duration() -> float:
+
+		return (
+			float(total_cells)
+			/ maxf(controller.vine_extend_speed, 0.01)
+		)
+
+
+	func start_extend() -> void:
+
+		visible_count = 0
+		elapsed = 0.0
+		growing = true
+		retracting = false
+
+		queue_redraw()
+
+
+	func start_retract() -> void:
+
+		visible_count = total_cells
+		elapsed = 0.0
+		retracting = true
+		growing = false
+
+		queue_redraw()
+
+
+	func _process(delta: float) -> void:
+
+		if growing:
+
+			elapsed += delta
+
+			var progress: float = clamp(
+				elapsed / _duration(),
+				0.0,
+				1.0
+			)
+
+			visible_count = clampi(
+				int(ceil(float(total_cells) * progress)),
+				1,
+				total_cells
+			)
+
+			queue_redraw()
+
+			if progress >= 1.0:
+
+				growing = false
+				visible_count = total_cells
+
+				extension_finished.emit()
+
+		elif retracting:
+
+			elapsed += delta
+
+			var progress: float = clamp(
+				elapsed / _duration(),
+				0.0,
+				1.0
+			)
+
+			visible_count = clampi(
+				total_cells
+				- int(floor(float(total_cells) * progress)),
+				0,
+				total_cells
+			)
+
+			queue_redraw()
+
+			if progress >= 1.0:
+
+				retracting = false
+				visible_count = 0
+
+				queue_redraw()
+
+				retraction_finished.emit()
+
 
 	func _draw() -> void:
 
 		if vine_texture == null:
 			return
 
-		var width := DrRogueoBoard.BOARD_WIDTH
+		if visible_count <= 0:
+			return
 
-		for col in range(width):
+		if growing:
 
-			var cell := Vector2i(
-				col,
-				controller.guard_row
+			for i in range(visible_count):
+
+				var col: int = (
+					i
+					if side == 0
+					else (total_cells - 1 - i)
+				)
+
+				var frame := HORIZONTAL_REPEAT
+
+				if i == visible_count - 1:
+
+					frame = (
+						TIP_RIGHT
+						if side == 0
+						else TIP_LEFT
+					)
+
+				_draw_cell(col, frame)
+
+			return
+
+
+		# ----------------------------------------------------
+		# RETRACTING
+		# ----------------------------------------------------
+		#
+		# Same visual orientation as the extending vine.
+		#
+		# The visible vine is still ordered from its entry
+		# edge toward its leading tip. As visible_count gets
+		# smaller, the far/leading end moves back toward the
+		# entry edge.
+		#
+		# RIGHT -> LEFT:
+		#
+		# <-------|
+		#  <------|
+		#   <-----|
+		#    <----|
+		#     <---|
+		#      <--|
+		#       <-|
+		#        <|
+		#
+		# LEFT -> RIGHT is the mirror image.
+		#
+		# Therefore the tip remains at the FAR END of the
+		# visible vine -- exactly the same rule as extension.
+		# ----------------------------------------------------
+
+		for i in range(visible_count):
+
+			var col: int = (
+				i
+				if side == 0
+				else (total_cells - 1 - i)
 			)
 
 			var frame := HORIZONTAL_REPEAT
 
-			if col == 0:
+			if i == visible_count - 1:
 
-				frame = TIP_LEFT
+				frame = (
+					TIP_RIGHT
+					if side == 0
+					else TIP_LEFT
+				)
 
-			elif col == width - 1:
+			_draw_cell(col, frame)
 
-				frame = TIP_RIGHT
 
-			var top_left: Vector2 = (
-				controller.board.grid_to_local(cell)
-			)
+	func _draw_cell(
+		col: int,
+		frame: int
+	) -> void:
 
-			var source_rect := Rect2(
-				(frame % 3) * 8,
-				(frame / 3) * 8,
-				8,
-				8
-			)
+		var cell := Vector2i(
+			col,
+			row
+		)
 
-			draw_texture_rect_region(
-				vine_texture,
-				Rect2(
-					top_left,
-					Vector2(
-						DrRogueoBoard.CELL_SIZE,
-						DrRogueoBoard.CELL_SIZE
-					)
-				),
-				source_rect
-			)
+		var top_left: Vector2 = (
+			controller.board.grid_to_local(cell)
+		)
+
+		var source_rect := Rect2(
+			(frame % 3) * 8,
+			(frame / 3) * 8,
+			8,
+			8
+		)
+
+		draw_texture_rect_region(
+			vine_texture,
+			Rect2(
+				top_left,
+				Vector2(
+					DrRogueoBoard.CELL_SIZE,
+					DrRogueoBoard.CELL_SIZE
+				)
+			),
+			source_rect
+		)
 
 
 # ============================================================
-# BOSS-LANDING DAMAGE (VINES PHASE ONLY)
+# VIRUS PHASE
+# ============================================================
+
+func _end_virus_phase() -> void:
+
+	busy = true
+
+	_clear_all_settled_pills()
+
+	current_phase = Phase.VINES
+
+	await _retract_and_remove_guard_vine()
+
+	await _spawn_bubble_globs()
+
+
+# ============================================================
+# BOSS-LANDING DAMAGE
 # ============================================================
 
 func try_handle_pill_landing(
@@ -1546,8 +1897,8 @@ func _play_death() -> void:
 	boss_sprite.visible = false
 
 	_clear_all_vines()
-	_clear_bubble_globs()
-	_remove_guard_row()
+	_clear_bubble_globs(true)
+	_remove_guard_vine_immediate()
 
 	defeated_changed.emit(true)
 
@@ -1570,9 +1921,6 @@ func _cell_is_glob_eligible(cell: Vector2i) -> bool:
 	if footprint_cells.has(cell):
 		return false
 
-	# Keep the 2x2 area directly above the boss permanently
-	# clear so bubbles can never visually cover the boss's
-	# launching/entrance area.
 	if _is_boss_clear_cell(cell):
 		return false
 
@@ -1584,18 +1932,6 @@ func _cell_is_glob_eligible(cell: Vector2i) -> bool:
 
 func _is_boss_clear_cell(cell: Vector2i) -> bool:
 
-	# Boss footprint:
-	#
-	#   XX
-	#   XX
-	#
-	# Always keep the 2x2 area immediately above it clear:
-	#
-	#   ..
-	#   ..
-	#   XX
-	#   XX
-	#
 	if (
 		cell.x >= boss_col
 		and cell.x < boss_col + 2
@@ -1606,6 +1942,40 @@ func _is_boss_clear_cell(cell: Vector2i) -> bool:
 		return true
 
 	return false
+
+
+# ============================================================
+# PERMANENT SIDE BUBBLES
+# ============================================================
+
+func _create_boss_side_bubbles() -> void:
+
+	var candidates: Array[Vector2i] = []
+
+	for row in range(boss_row, boss_row + 2):
+
+		for col in range(DrRogueoBoard.BOARD_WIDTH):
+
+			# Skip the two cells occupied by the 2x2 boss.
+			if col >= boss_col and col <= boss_col + 1:
+				continue
+
+			candidates.append(Vector2i(col, row))
+
+	for cell in candidates:
+
+		if cell.x < 0 or cell.x >= DrRogueoBoard.BOARD_WIDTH:
+			continue
+
+		if cell.y < 0 or cell.y >= DrRogueoBoard.BOARD_HEIGHT:
+			continue
+
+		if board.is_cell_filled(cell):
+			continue
+
+		_place_bubble(cell, true)
+
+		_side_bubble_cells[cell] = true
 
 
 func _spawn_bubble_globs() -> void:
@@ -1707,9 +2077,6 @@ func _spawn_bubble_globs() -> void:
 
 		placed_globs += 1
 
-	# Build the bubble field visually from the bottom of the
-	# board upward. Every occupied cell in a given row appears
-	# together before moving to the next row.
 	for row in range(
 		DrRogueoBoard.BOARD_HEIGHT - 1,
 		OPENING_TOP_HEIGHT - 1,
@@ -1754,11 +2121,20 @@ func _spawn_bubble_globs() -> void:
 		busy = false
 
 
-func _clear_bubble_globs() -> void:
+func _clear_bubble_globs(include_persistent: bool = false) -> void:
 
 	_bubble_build_generation += 1
 
+	var cells_to_remove: Array[Vector2i] = []
+
 	for cell in bubble_cells.keys():
+
+		if not include_persistent and _side_bubble_cells.has(cell):
+			continue
+
+		cells_to_remove.append(cell)
+
+	for cell in cells_to_remove:
 
 		if board != null:
 			board.boss_maze_cells.erase(cell)
@@ -1768,9 +2144,13 @@ func _clear_bubble_globs() -> void:
 		if is_instance_valid(sprite):
 			sprite.queue_free()
 
-	bubble_cells.clear()
-	bubble_pair_type.clear()
-	bubble_frame_offset.clear()
+		bubble_cells.erase(cell)
+		bubble_pair_type.erase(cell)
+		bubble_frame_offset.erase(cell)
+
+	if include_persistent:
+
+		_side_bubble_cells.clear()
 
 
 func _place_bubble(
@@ -1974,8 +2354,8 @@ func _exit_tree() -> void:
 		)
 
 	_clear_all_vines()
-	_clear_bubble_globs()
-	_remove_guard_row()
+	_clear_bubble_globs(true)
+	_remove_guard_vine_immediate()
 
 	if (
 		_magnifier_root != null
