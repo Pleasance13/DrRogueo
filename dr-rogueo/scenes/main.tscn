@@ -157,8 +157,6 @@ thwomp_sprite_texture = ExtResource("27_tel4y")
 store_scene = ExtResource("22_y6deb")
 debug_enabled = true
 debug_stage = 4
-debug_item_slot_1 = "PONG PILL"
-debug_item_slot_2 = "GHOST PILL"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 
