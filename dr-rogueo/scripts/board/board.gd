@@ -432,6 +432,9 @@ var boss_blocked_cells: Dictionary = {}
 # real footprint, in boss_blocked_cells).
 var boss_maze_cells: Dictionary = {}
 
+var boss_attack_pause := false
+var boss_attack_spawn_pending := false
+
 # Vector2i -> PillHalf
 var occupied_cells: Dictionary = {}
 
@@ -659,6 +662,7 @@ func set_pause_label_visible(visible: bool) -> void:
 	if pause_label != null:
 		pause_label.visible = visible
 
+
 # ============================================================
 # PROCESS
 # ============================================================
@@ -671,6 +675,8 @@ func _process(delta: float) -> void:
 	if game_over:
 		_process_game_over(delta)
 		return
+
+	_process_conveyors(delta)
 
 	# --------------------------------------------------------
 	# HUD (kept live regardless of what state the board is in,
@@ -794,6 +800,25 @@ func _process(delta: float) -> void:
 		can_fall = can_pill_occupy(
 			current_grid_position + Vector2i(0, 1)
 		)
+
+
+	# --------------------------------------------------------
+	# CONVEYOR OVERRIDE
+	# --------------------------------------------------------
+	#
+	# If ANY part of the active pill is in a conveyor column,
+	# the conveyor completely overrides normal gravity.
+	#
+	# This prevents the normal downward fall timer from fighting
+	# the conveyor's upward movement.
+	# --------------------------------------------------------
+
+	if _current_pill_is_on_conveyor():
+
+		fall_timer = 0.0
+		lock_timer = 0.0
+
+		return
 
 
 	# --------------------------------------------------------
@@ -2049,6 +2074,11 @@ func _pick_boss_controller() -> Node:
 	if boss_2 == null:
 		boss_2 = get_node_or_null("../Boss2Controller")
 
+	var boss_3 := get_tree().get_first_node_in_group("boss_3_controller")
+
+	if boss_3 == null:
+		boss_3 = get_node_or_null("../Boss3Controller")
+
 	var candidates: Array = []
 
 	if boss_1 != null:
@@ -2056,6 +2086,9 @@ func _pick_boss_controller() -> Node:
 
 	if boss_2 != null:
 		candidates.append(boss_2)
+
+	if boss_3 != null:
+		candidates.append(boss_3)
 
 	if candidates.is_empty():
 		return null
@@ -2418,11 +2451,14 @@ func create_next_preview() -> void:
 
 func spawn_pill() -> void:
 
+	if boss_attack_pause:
+		boss_attack_spawn_pending = true
+		return
+
+
 	if next_pill_item != null and next_pill_item.id == "pong":
 
 		var pong_item := next_pill_item
-
-		clear_next_pill_item()
 
 
 		# ----------------------------------------------------
@@ -2840,7 +2876,7 @@ func get_color_at_cell(
 			as PillHalf
 		)
 
-		if half != null:
+		if half != null and not half.is_stone:
 			return half.pill_color
 
 
@@ -3699,6 +3735,12 @@ func start_shift(direction: Vector2i) -> void:
 
 	resolving_board = true
 
+	# Shift's board-wide gravity override always wins over a
+	# Boss 3 conveyor while it's running -- Shift is a short,
+	# one-off effect, so pausing conveyors for its duration is
+	# simpler than trying to blend the two.
+	shift_gravity_active = true
+
 
 	# --------------------------------------------------------
 	# PHASE 1: Shift gravity toward the arrow's direction until
@@ -3723,6 +3765,8 @@ func start_shift(direction: Vector2i) -> void:
 
 	if level_cleared:
 
+		shift_gravity_active = false
+
 		resolving_board = false
 
 		await advance_to_next_level()
@@ -3742,6 +3786,8 @@ func start_shift(direction: Vector2i) -> void:
 			Vector2i(0, 1)
 		)
 
+
+	shift_gravity_active = false
 
 	resolving_board = false
 
@@ -4670,6 +4716,7 @@ func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
 	for row in range(BOARD_HEIGHT):
 
 		var full := true
+		var contains_stone := false
 
 		for col in range(BOARD_WIDTH):
 
@@ -4680,6 +4727,12 @@ func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
 			#
 			# boss_maze_cells are intentionally excluded.
 			if occupied_cells.has(cell):
+
+				var half := occupied_cells[cell] as PillHalf
+
+				if half != null and half.is_stone:
+					contains_stone = true
+
 				continue
 
 			if virus_cells.has(cell):
@@ -4691,7 +4744,10 @@ func _find_full_rows_for_tetris_trait() -> Array[Vector2i]:
 			full = false
 			break
 
-		if full:
+		# A stone half can never be part of a Tetris auto-clear
+		# (see PillHalf.is_stone doc comment), so a row
+		# containing one is disqualified even if otherwise full.
+		if full and not contains_stone:
 
 			for col in range(BOARD_WIDTH):
 				result.append(Vector2i(col, row))
@@ -4999,6 +5055,9 @@ func _expand_matches_for_dissolvers(
 		)
 
 		if half == null:
+			continue
+
+		if half.is_stone:
 			continue
 
 		if colors_to_clear.has(half.pill_color):
@@ -6137,6 +6196,17 @@ func gravity_unit_can_fall(
 	wrap_horizontal: bool = false
 ) -> bool:
 
+	var halves: Array[PillHalf] = (
+		unit["halves"]
+	)
+
+	for half in halves:
+
+		if half != null and is_instance_valid(half) and half.is_stone:
+
+			return false
+
+
 	var cells: Array[Vector2i] = (
 		unit["cells"]
 	)
@@ -6371,6 +6441,536 @@ func move_gravity_unit(
 		half.position = grid_to_local(
 			destination
 		)
+
+
+# ============================================================
+# BOSS 3 SUPPORT -- CONVEYORS
+# ============================================================
+#
+# Generic per-column "conveyor" belts. Boss3Controller turns
+# this on by populating conveyor_columns (typically [0,
+# BOARD_WIDTH - 1]) and tuning conveyor_interval, and clears
+# conveyor_columns back to [] when the fight ends. Any column
+# in conveyor_columns pushes UPWARD at a fixed cell-snapped
+# pace, affecting:
+#
+#   - the currently falling player pill, if any occupied cell
+#     overlaps a conveyor column (overrides normal gravity for
+#     that pill entirely while it's there)
+#   - every settled pill half sitting in a conveyor column,
+#     INCLUDING stone halves -- stone is immune to normal
+#     gravity, not to conveyors
+#
+# Shift's board-wide gravity override takes priority (see
+# shift_gravity_active, set/cleared in start_shift()).
+# ============================================================
+
+var conveyor_columns: Array[int] = []
+
+var conveyor_interval: float = float(SOFT_DROP_FRAMES) / 60.0
+
+var shift_gravity_active := false
+
+var _conveyor_timer := 0.0
+
+
+func _process_conveyors(delta: float) -> void:
+
+	if conveyor_columns.is_empty():
+		return
+
+	if shift_gravity_active:
+		return
+
+	if resolving_board:
+		return
+
+	if transitioning_level or game_over:
+		return
+
+	_conveyor_timer += delta
+
+	if _conveyor_timer < conveyor_interval:
+		return
+
+	_conveyor_timer -= conveyor_interval
+
+	_conveyor_move_current_pill()
+
+	_conveyor_move_settled_units()
+
+
+func _cell_in_conveyor_column(cell: Vector2i) -> bool:
+
+	return conveyor_columns.has(cell.x)
+
+
+func _current_pill_is_on_conveyor() -> bool:
+
+	if current_pill == null:
+		return false
+
+	if _pill_throw_in_progress:
+		return false
+
+	var cells: Array[Vector2i] = current_pill.get_occupied_cells(
+		current_grid_position
+	)
+
+	for cell in cells:
+
+		if _cell_in_conveyor_column(cell):
+
+			return true
+
+	return false
+
+
+func _conveyor_move_current_pill() -> void:
+
+	if not _current_pill_is_on_conveyor():
+		return
+
+	var new_position: Vector2i = (
+		current_grid_position + Vector2i(0, -1)
+	)
+
+	var destination_cells: Array[Vector2i] = (
+		current_pill.get_occupied_cells(new_position)
+	)
+
+	for cell in destination_cells:
+
+		# Hard ceiling. The conveyor can never push
+		# any part of the active pill above row 0.
+		if cell.y < 0:
+			return
+
+		if cell.y >= BOARD_HEIGHT:
+			return
+
+		if cell.x < 0 or cell.x >= BOARD_WIDTH:
+			return
+
+	if not can_pill_occupy(new_position):
+		return
+
+	current_grid_position = new_position
+
+	update_pill_position()
+
+
+func _conveyor_move_settled_units() -> void:
+
+	var units := build_gravity_units()
+
+	units.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+
+			return (
+				gravity_unit_leading_position(a, Vector2i(0, -1))
+				> gravity_unit_leading_position(b, Vector2i(0, -1))
+			)
+	)
+
+	var moving_halves: Dictionary = {}
+
+	for unit in units:
+
+		var cells: Array[Vector2i] = unit["cells"]
+
+		var on_conveyor := false
+
+		for cell in cells:
+
+			if _cell_in_conveyor_column(cell):
+
+				on_conveyor = true
+				break
+
+		if not on_conveyor:
+			continue
+
+		if not _conveyor_unit_can_move(unit, moving_halves):
+			continue
+
+		var halves: Array[PillHalf] = unit["halves"]
+
+		for half in halves:
+			moving_halves[half] = true
+
+		move_gravity_unit(unit, Vector2i(0, -1), false)
+
+
+# Same shape as gravity_unit_can_fall(), but deliberately
+# WITHOUT the stone exclusion -- stone halves are exactly what
+# conveyors need to be able to move. Horizontal wrap is never
+# relevant here (conveyors only ever push vertically).
+func _conveyor_unit_can_move(
+	unit: Dictionary,
+	moving_halves: Dictionary
+) -> bool:
+
+	var cells: Array[Vector2i] = unit["cells"]
+
+	for cell in cells:
+
+		var destination := cell + Vector2i(0, -1)
+
+		if destination.y < 0:
+			return false
+
+		if destination.x < 0 or destination.x >= BOARD_WIDTH:
+			return false
+
+		if virus_cells.has(destination):
+			return false
+
+		if tether_cells.has(destination):
+			return false
+
+		if boss_blocked_cells.has(destination):
+			return false
+
+		if boss_maze_cells.has(destination):
+			return false
+
+		if occupied_cells.has(destination):
+
+			var occupant := occupied_cells[destination] as PillHalf
+
+			if occupant == null:
+				continue
+
+			if unit_contains_half(unit, occupant):
+				continue
+
+			if moving_halves.has(occupant):
+				continue
+
+			return false
+
+	return true
+
+
+# ============================================================
+# BOSS 3 SUPPORT -- PETRIFY (Medusa gaze)
+# ============================================================
+
+# Called once per Medusa attack (safeguard from answer 19): every
+# ALREADY-stone half on the board takes 1 chip of damage, except
+# any half in `exclude_cells` (the halves that were just freshly
+# turned to stone by THIS same attack, via petrify_current_pill() -
+# they shouldn't immediately take damage on the attack that
+# created them). Halves that break from this are cleared exactly
+# like any other take_hit() break.
+func chip_damage_existing_stone(exclude_cells: Dictionary = {}) -> void:
+
+	for cell in occupied_cells.keys().duplicate():
+
+		if exclude_cells.has(cell):
+			continue
+
+		var half := occupied_cells[cell] as PillHalf
+
+		if half == null or not is_instance_valid(half):
+			continue
+
+		if not half.is_stone:
+			continue
+
+		if not half.take_hit():
+			continue
+
+		occupied_cells.erase(cell)
+
+		var partner := half.partner_half
+
+		if is_instance_valid(partner):
+
+			partner.partner_half = null
+			half.partner_half = null
+
+			partner.pill_state = PillHalf.PillState.SEPARATED
+
+		half.pill_state = PillHalf.PillState.VANISHING
+
+		vanishing_halves[half] = VANISH_DURATION
+
+
+# Turns the CURRENTLY FALLING pill to stone in place: settles
+# both halves at their current grid position (same bookkeeping
+# as settle_current_pill(), minus pending-item handling and
+# match resolution -- a freshly-stoned pill can't match), then
+# immediately spawns a new pill. Petrifying the falling pill
+# removes player control outright rather than leaving a frozen
+# husk to keep steering.
+func petrify_current_pill() -> void:
+
+	if current_pill == null:
+		return
+
+	var half_1 := current_pill.get_node_or_null("Half1") as PillHalf
+	var half_2 := current_pill.get_node_or_null("Half2") as PillHalf
+
+	if half_1 == null or half_2 == null:
+
+		current_pill.queue_free()
+		current_pill = null
+
+		spawn_pill()
+
+		return
+
+	half_1.partner_half = half_2
+	half_2.partner_half = half_1
+
+	var half_1_cell := current_pill.get_half_1_cell(current_grid_position)
+	var half_2_cell := current_pill.get_half_2_cell(current_grid_position)
+
+	half_1_cell = wrap_cell_if_needed(half_1_cell)
+	half_2_cell = wrap_cell_if_needed(half_2_cell)
+
+	half_1.reparent(self, true)
+	half_2.reparent(self, true)
+
+	half_1.pill_state = get_settled_state_for_half(current_pill, 1)
+	half_2.pill_state = get_settled_state_for_half(current_pill, 2)
+
+	half_1.position = grid_to_local(half_1_cell)
+	half_2.position = grid_to_local(half_2_cell)
+
+	occupied_cells[half_1_cell] = half_1
+	occupied_cells[half_2_cell] = half_2
+
+	current_pill.queue_free()
+	current_pill = null
+
+	fall_timer = 0.0
+	lock_timer = 0.0
+	lock_reset_count = 0
+
+	half_1.petrify()
+	half_2.petrify()
+
+	spawn_pill()
+
+
+func petrify_settled_pills() -> Dictionary:
+
+	var freshly_stoned_cells: Dictionary = {}
+
+	for cell_variant in occupied_cells.keys():
+
+		var cell: Vector2i = cell_variant
+
+		var half := occupied_cells[cell] as PillHalf
+
+		if half == null:
+			continue
+
+		if half.is_stone:
+			continue
+
+		if half.is_turning_to_stone:
+			continue
+
+		half.petrify()
+
+		freshly_stoned_cells[cell] = true
+
+	return freshly_stoned_cells
+
+
+# ============================================================
+# BOSS 3 SUPPORT -- BOMBS
+# ============================================================
+#
+# Generic pickup + area-damage plumbing. Spawn cadence, the
+# 5-bomb threshold, and the thrown-bomb-onto-boss sequence all
+# live in Boss3Controller (boss/item-specific tuning stays out
+# of board.gd, per project convention) -- this just gives the
+# controller somewhere to register pickups and a damage helper
+# to call.
+# ============================================================
+
+const BOMB_EXPLOSION_DAMAGE := 3
+
+# Vector2i -> Node (whatever visual the controller creates).
+var bomb_pickup_cells: Dictionary = {}
+
+
+func is_cell_free_for_bomb_pickup(cell: Vector2i) -> bool:
+
+	if is_cell_filled(cell):
+		return false
+
+	if bomb_pickup_cells.has(cell):
+		return false
+
+	if _cell_in_conveyor_column(cell):
+		return false
+
+	return true
+
+
+func place_bomb_pickup(cell: Vector2i, visual: Node) -> void:
+
+	bomb_pickup_cells[cell] = visual
+
+
+func remove_bomb_pickup(cell: Vector2i) -> Node:
+
+	if not bomb_pickup_cells.has(cell):
+		return null
+
+	var visual: Node = bomb_pickup_cells[cell]
+
+	bomb_pickup_cells.erase(cell)
+
+	return visual
+
+
+# Call every frame from Boss3Controller's own _process to check
+# whether the falling pill has walked over any pickups. Returns
+# the cells collected this call so the caller can free the
+# visuals and bump its own counter/gauge.
+func collect_bomb_pickups_under_current_pill() -> Array[Vector2i]:
+
+	var collected: Array[Vector2i] = []
+
+	if current_pill == null:
+		return collected
+
+	if bomb_pickup_cells.is_empty():
+		return collected
+
+	var cells := current_pill.get_occupied_cells(
+		current_grid_position
+	)
+
+	for cell in cells:
+
+		var check_cell := cell
+
+		if has_pacman_trait():
+			check_cell = wrap_cell_if_needed(cell)
+
+		if bomb_pickup_cells.has(check_cell):
+			collected.append(check_cell)
+
+	return collected
+
+
+# 3x3 area of effect centered on `center`. Deals
+# BOMB_EXPLOSION_DAMAGE to pill halves (via deal_damage(),
+# which also clears stone) and viruses, and outright removes
+# any tether, exactly like the existing crush/pong patterns.
+# Also damages the boss if the blast overlaps its footprint.
+func explode_bomb_at(center: Vector2i) -> void:
+
+	for offset_y in range(-1, 2):
+
+		for offset_x in range(-1, 2):
+
+			var cell := center + Vector2i(offset_x, offset_y)
+
+			if has_pacman_trait():
+				cell = wrap_cell_if_needed(cell)
+
+			_bomb_damage_cell(cell)
+
+	if (
+		boss_controller != null
+		and boss_controller.has_method("take_direct_damage")
+		and _cell_within_offset_of_boss(center, 1)
+	):
+
+		boss_controller.take_direct_damage(BOMB_EXPLOSION_DAMAGE)
+
+
+func _cell_within_offset_of_boss(center: Vector2i, radius: int) -> bool:
+
+	for offset_y in range(-radius, radius + 1):
+
+		for offset_x in range(-radius, radius + 1):
+
+			if boss_blocked_cells.has(center + Vector2i(offset_x, offset_y)):
+
+				return true
+
+	return false
+
+
+func _bomb_damage_cell(cell: Vector2i) -> void:
+
+	if occupied_cells.has(cell):
+
+		var half := occupied_cells[cell] as PillHalf
+
+		if half == null or not is_instance_valid(half):
+			return
+
+		if not half.deal_damage(BOMB_EXPLOSION_DAMAGE):
+			return
+
+		occupied_cells.erase(cell)
+
+		var partner := half.partner_half
+
+		if is_instance_valid(partner):
+
+			partner.partner_half = null
+			half.partner_half = null
+
+			partner.pill_state = PillHalf.PillState.SEPARATED
+
+		half.pill_state = PillHalf.PillState.VANISHING
+
+		vanishing_halves[half] = VANISH_DURATION
+
+		return
+
+
+	if virus_cells.has(cell):
+
+		var virus := virus_cells[cell] as Virus
+
+		if virus == null or not is_instance_valid(virus):
+			return
+
+		var broke := false
+
+		for _i in range(BOMB_EXPLOSION_DAMAGE):
+
+			if virus.take_hit():
+
+				broke = true
+				break
+
+		if not broke:
+			return
+
+		var cleared_color := virus.virus_color
+
+		virus_cells.erase(cell)
+
+		virus.visual_state = Virus.VisualState.VANISHING
+
+		vanishing_halves[virus] = VANISH_DURATION
+
+		award_virus_coins(cleared_color)
+
+		BonusManager.notify(self, "virus_cleared", {"color": cleared_color})
+
+		return
+
+
+	if tether_cells.has(cell):
+
+		var tether := tether_cells[cell] as Tether
+
+		_remove_tether(tether)
 
 
 # ============================================================

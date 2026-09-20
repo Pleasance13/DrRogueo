@@ -1,27 +1,29 @@
-[gd_scene load_steps=5 format=3 uid="uid://dt4yyoajt5a28"]
+[gd_scene format=3 uid="uid://dt4yyoajt5a28"]
 
 [ext_resource type="Script" uid="uid://2qotxf1orxuv" path="res://scripts/pills/pill.gd" id="1_aqytg"]
 [ext_resource type="Texture2D" uid="uid://bciyqr4ckv1gv" path="res://art/pills/pills.png" id="1_cs156"]
 [ext_resource type="Script" uid="uid://cytcbd75pve0y" path="res://scripts/pills/pill_half.gd" id="2_vrjvl"]
 [ext_resource type="Texture2D" uid="uid://beektqrbtdkxc" path="res://art/effects/pill_breaking.png" id="3_dmgovl"]
+[ext_resource type="Texture2D" uid="uid://dhldmxnw08din" path="res://art/pills/dissolve_pill.png" id="5_qgslj"]
+[ext_resource type="Texture2D" uid="uid://bjkm6rm18yp8k" path="res://art/pills/stone_pills.png" id="5_w7spp"]
 
-[node name="Pill" type="Node2D"]
+[node name="Pill" type="Node2D" unique_id=1890229930]
 texture_filter = 1
 script = ExtResource("1_aqytg")
 orientation = 3
 
-[node name="Half1" type="Node2D" parent="."]
+[node name="Half1" type="Node2D" parent="." unique_id=1682762888]
 script = ExtResource("2_vrjvl")
 pill_state = 1
 
-[node name="Sprite2D" type="Sprite2D" parent="Half1"]
+[node name="Sprite2D" type="Sprite2D" parent="Half1" unique_id=857431591]
 texture_filter = 1
 texture = ExtResource("1_cs156")
 centered = false
 region_enabled = true
 region_rect = Rect2(0, 8, 8, 8)
 
-[node name="DamageOverlay" type="Sprite2D" parent="Half1"]
+[node name="DamageOverlay" type="Sprite2D" parent="Half1" unique_id=538665215]
 visible = false
 texture_filter = 1
 texture = ExtResource("3_dmgovl")
@@ -29,26 +31,34 @@ centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 8, 8)
 
-[node name="DissolverOverlay" type="Sprite2D" parent="Half1"]
+[node name="DissolverOverlay" type="Sprite2D" parent="Half1" unique_id=618655237]
 visible = false
 texture_filter = 1
+texture = ExtResource("5_qgslj")
 centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 8, 8)
 
-[node name="Half2" type="Node2D" parent="."]
+[node name="StoneOverlay" type="Sprite2D" parent="Half1" unique_id=1512520455]
+visible = false
+texture = ExtResource("5_w7spp")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 8, 8)
+
+[node name="Half2" type="Node2D" parent="." unique_id=309552451]
 position = Vector2(0, -8)
 script = ExtResource("2_vrjvl")
 pill_color = 2
 
-[node name="Sprite2D" type="Sprite2D" parent="Half2"]
+[node name="Sprite2D" type="Sprite2D" parent="Half2" unique_id=308456953]
 texture_filter = 1
 texture = ExtResource("1_cs156")
 centered = false
 region_enabled = true
 region_rect = Rect2(16, 0, 8, 8)
 
-[node name="DamageOverlay" type="Sprite2D" parent="Half2"]
+[node name="DamageOverlay" type="Sprite2D" parent="Half2" unique_id=844803724]
 visible = false
 texture_filter = 1
 texture = ExtResource("3_dmgovl")
@@ -56,9 +66,17 @@ centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 8, 8)
 
-[node name="DissolverOverlay" type="Sprite2D" parent="Half2"]
+[node name="DissolverOverlay" type="Sprite2D" parent="Half2" unique_id=1987375700]
 visible = false
 texture_filter = 1
+texture = ExtResource("5_qgslj")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 8, 8)
+
+[node name="StoneOverlay" type="Sprite2D" parent="Half2" unique_id=121192472]
+visible = false
+texture = ExtResource("5_w7spp")
 centered = false
 region_enabled = true
 region_rect = Rect2(0, 0, 8, 8)
