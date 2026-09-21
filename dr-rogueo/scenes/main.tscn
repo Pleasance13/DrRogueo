@@ -69,6 +69,7 @@ magnifier_boss_position = Vector2(29, 17)
 
 [node name="Boss3Controller" type="Node2D" parent="." unique_id=733790425]
 script = ExtResource("4_j8jky")
+telegraph_flash_count = 7
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1261090602]
 offset_right = 427.0
@@ -161,6 +162,7 @@ thwomp_sprite_texture = ExtResource("27_tel4y")
 store_scene = ExtResource("22_y6deb")
 debug_enabled = true
 debug_stage = 4
+debug_item_slot_1 = "GHOST PILL"
 game_over_font = ExtResource("15_og1vs")
 game_over_font_size = 8
 

@@ -154,6 +154,12 @@ func petrify(transition_duration: float = STONE_TRANSITION_DURATION) -> void:
 
 	hp = MAX_HP
 
+	# Petrification is logically immediate.
+	#
+	# The stone transition is purely visual, so the board should
+	# treat this half as stone for gravity/conveyor purposes from
+	# the instant Medusa petrifies it.
+	is_stone = true
 	is_turning_to_stone = true
 
 	_update_damage_overlay()
@@ -169,7 +175,6 @@ func petrify(transition_duration: float = STONE_TRANSITION_DURATION) -> void:
 		return
 
 	is_turning_to_stone = false
-	is_stone = true
 
 
 @onready var sprite: Sprite2D = $Sprite2D
@@ -303,7 +308,23 @@ func _update_sprite() -> void:
 
 	sprite_node.region_enabled = true
 
-	if is_stone and pill_state != PillState.VANISHING:
+	# While transitioning, keep the normal/dissolver sprite
+	# underneath the stone-transition overlay.
+	#
+	# is_stone is already TRUE during this period because the
+	# gameplay state changes immediately. The transition itself
+	# is visual only.
+	if is_turning_to_stone and pill_state != PillState.VANISHING:
+
+		if is_dissolver:
+
+			_apply_dissolver_region(sprite_node)
+
+		else:
+
+			_apply_normal_region(sprite_node)
+
+	elif is_stone and pill_state != PillState.VANISHING:
 
 		_apply_stone_region(sprite_node)
 
